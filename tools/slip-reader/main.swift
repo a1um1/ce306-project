@@ -1,12 +1,14 @@
 // KBank slip reader: Vision OCR -> structured fields -> JSON + highlight PNG.
 // Build: swiftc -O main.swift Sources/*.swift -o bin/slipreader
-// Run:   bin/slipreader <image|dir> [more...]
+// Run:   bin/slipreader <image|dir> [more...] [--no-highlight]
 import Foundation
 
 let fm = FileManager.default
-let args = Array(CommandLine.arguments.dropFirst())
+var args = Array(CommandLine.arguments.dropFirst())
+let noHighlight = args.contains("--no-highlight")
+args.removeAll { $0 == "--no-highlight" }
 guard !args.isEmpty else {
-    FileHandle.standardError.write("usage: slipreader <image|dir>...\n".data(using: .utf8)!)
+    FileHandle.standardError.write("usage: slipreader <image|dir>... [--no-highlight]\n".data(using: .utf8)!)
     exit(1)
 }
 
@@ -22,30 +24,40 @@ for a in args {
     }
 }
 
-let outDir = "highlight"
-try? fm.createDirectory(atPath: outDir, withIntermediateDirectories: true)
+if !noHighlight {
+    try? fm.createDirectory(atPath: "highlight", withIntermediateDirectories: true)
+}
 
-var results: [[String: Any]] = []
-for path in images {
+// OCR is CPU-bound and independent per slip, so run all of them at once.
+// libdispatch picks the pool size; a lock keeps the result slots ordered.
+var results = [[String: Any]?](repeating: nil, count: images.count)
+let lock = NSLock()
+
+DispatchQueue.concurrentPerform(iterations: images.count) { index in
+    let path = images[index]
     guard let cg = loadCGImage(path) else {
         FileHandle.standardError.write("skip (unreadable): \(path)\n".data(using: .utf8)!)
-        continue
+        return
     }
     do {
         let start = DispatchTime.now()
         let obs = try recognize(cg)
         var fields = parse(file: path, obs: obs)
         let regions = (fields.removeValue(forKey: "_regions") as? [(String, Obs)]) ?? []
-        let name = ((path as NSString).lastPathComponent as NSString).deletingPathExtension
-        highlight(cg, regions: regions, to: "\(outDir)/\(name).highlight.png")
+        if !noHighlight {
+            let name = ((path as NSString).lastPathComponent as NSString).deletingPathExtension
+            highlight(cg, regions: regions, to: "highlight/\(name).highlight.png")
+        }
         let ms = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000
         fields["durationMs"] = (ms * 10).rounded() / 10
-        results.append(fields)
+        lock.lock()
+        results[index] = fields
+        lock.unlock()
     } catch {
         FileHandle.standardError.write("error \(path): \(error)\n".data(using: .utf8)!)
     }
 }
 
-let data = try JSONSerialization.data(withJSONObject: results, options: [.prettyPrinted, .withoutEscapingSlashes])
+let data = try JSONSerialization.data(withJSONObject: results.compactMap { $0 }, options: [.prettyPrinted, .withoutEscapingSlashes])
 FileHandle.standardOutput.write(data)
 FileHandle.standardOutput.write("\n".data(using: .utf8)!)

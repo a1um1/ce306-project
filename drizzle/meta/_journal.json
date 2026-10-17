@@ -15,6 +15,13 @@
       "when": 1792228352638,
       "tag": "0001_slimy_redwing",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792229645696,
+      "tag": "0002_little_mongu",
+      "breakpoints": true
     }
   ]
 }

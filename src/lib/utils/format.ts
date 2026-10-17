@@ -26,6 +26,8 @@ export function toDateKey(d: Date): string {
 
 export type RangeKey = 'today' | 'week' | 'month' | 'halfYear'
 
+export const RANGE_ORDER: RangeKey[] = ['today', 'week', 'month', 'halfYear']
+
 export const RANGE_LABEL: Record<RangeKey, string> = {
   today: 'วันนี้',
   week: 'สัปดาห์นี้',
@@ -70,5 +72,16 @@ export function dayEndIso(dateKey: string): string {
 
 export function csvField(value: string): string {
   return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+}
+
+// Smallest range that still contains the given instant, so an imported slip
+// dated in the past stays visible instead of falling outside "today".
+export function rangeKeyFor(iso: string): RangeKey {
+  const time = new Date(iso).getTime()
+  for (const key of RANGE_ORDER) {
+    if (key === 'halfYear') return key
+    if (time >= new Date(rangeBounds(key).from).getTime()) return key
+  }
+  return 'halfYear'
 }
 

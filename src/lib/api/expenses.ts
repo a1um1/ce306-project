@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { and, desc, eq, gte, lte } from 'drizzle-orm'
+import { and, desc, eq, gte, isNotNull, lte } from 'drizzle-orm'
 import { db } from '@/db'
 import { category, expense } from '@/db/schema'
 import { requireUser } from './session'
@@ -13,6 +13,20 @@ export type ExpenseInput = {
   categoryId?: string | null
   source?: 'manual' | 'qr'
   qrPayload?: string | null
+  externalId?: string | null
+}
+
+export type ExpenseRow = {
+  id: string
+  title: string
+  payee: string | null
+  amount: string
+  occurredAt: Date
+  source: string
+  categoryId: string | null
+  categoryName: string | null
+  categoryIcon: string | null
+  categoryColor: string | null
 }
 
 const expenseView = {
@@ -28,17 +42,18 @@ const expenseView = {
   categoryColor: category.color,
 }
 
-export type ExpenseRow = {
-  id: string
-  title: string
-  payee: string | null
-  amount: string
-  occurredAt: Date
-  source: string
-  categoryId: string | null
-  categoryName: string | null
-  categoryIcon: string | null
-  categoryColor: string | null
+function toRow(item: ExpenseInput) {
+  return {
+    id: crypto.randomUUID(),
+    title: item.title,
+    payee: item.payee ?? null,
+    amount: item.amount.toFixed(2),
+    occurredAt: new Date(item.occurredAt),
+    categoryId: item.categoryId ?? null,
+    source: item.source ?? 'manual',
+    qrPayload: item.qrPayload ?? null,
+    externalId: item.externalId ?? null,
+  }
 }
 
 export const listExpenses = createServerFn({ method: 'POST' })
@@ -57,23 +72,36 @@ export const listExpenses = createServerFn({ method: 'POST' })
       .orderBy(desc(expense.occurredAt))
   })
 
+export const listImportedExternalIds = createServerFn({ method: 'GET' }).handler(async () => {
+  const user = await requireUser()
+  const rows = await db
+    .select({ externalId: expense.externalId })
+    .from(expense)
+    .where(and(eq(expense.userId, user.id), isNotNull(expense.externalId)))
+  return rows.map((row) => row.externalId).filter((value): value is string => Boolean(value))
+})
+
 export const createExpense = createServerFn({ method: 'POST' })
   .validator((data: ExpenseInput) => data)
   .handler(async ({ data }) => {
     const user = await requireUser()
     const [row] = await db
       .insert(expense)
-      .values({
-        id: crypto.randomUUID(),
-        userId: user.id,
-        title: data.title,
-        payee: data.payee ?? null,
-        amount: data.amount.toFixed(2),
-        occurredAt: new Date(data.occurredAt),
-        categoryId: data.categoryId ?? null,
-        source: data.source ?? 'manual',
-        qrPayload: data.qrPayload ?? null,
-      })
+      .values({ ...toRow(data), userId: user.id })
       .returning()
     return row
+  })
+
+export const importExpenses = createServerFn({ method: 'POST' })
+  .validator((data: { items: ExpenseInput[] }) => data)
+  .handler(async ({ data }) => {
+    const user = await requireUser()
+    if (data.items.length === 0) return { inserted: 0, skipped: 0 }
+    const rows = await db
+      .insert(expense)
+      .values(data.items.map((item) => ({ ...toRow(item), userId: user.id })))
+      // Unique on (user_id, external_id): re-importing a slip is a no-op.
+      .onConflictDoNothing({ target: [expense.userId, expense.externalId] })
+      .returning({ id: expense.id })
+    return { inserted: rows.length, skipped: data.items.length - rows.length }
   })

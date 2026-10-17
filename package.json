@@ -9,6 +9,7 @@
     "start": "node .output/server/index.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node --test src/lib/utils/*.test.ts",
+    "slips:build": "swiftc -O tools/slip-reader/main.swift tools/slip-reader/Sources/*.swift -o tools/slip-reader/bin/slipreader",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:generate": "drizzle-kit generate",

@@ -1,4 +1,4 @@
-import { boolean, numeric, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, numeric, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 // Core Better Auth schema. Keep in sync with `auth.api` expectations.
 export const user = pgTable('user', {
@@ -63,18 +63,23 @@ export const category = pgTable('category', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
-export const expense = pgTable('expense', {
-  id: text('id').primaryKey(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  categoryId: text('category_id').references(() => category.id, { onDelete: 'set null' }),
-  title: text('title').notNull(),
-  payee: text('payee'),
-  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
-  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
-  source: text('source').notNull().default('manual'), // manual | qr
-  qrPayload: text('qr_payload'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-})
+export const expense = pgTable(
+  'expense',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    categoryId: text('category_id').references(() => category.id, { onDelete: 'set null' }),
+    title: text('title').notNull(),
+    payee: text('payee'),
+    amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    source: text('source').notNull().default('manual'), // manual | qr
+    qrPayload: text('qr_payload'),
+    externalId: text('external_id'), // slip transaction id, for dedupe
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex('expense_user_external_idx').on(table.userId, table.externalId)],
+)

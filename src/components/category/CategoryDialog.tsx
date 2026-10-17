@@ -19,6 +19,8 @@ type Props = {
 export function CategoryDialog({ open, onOpenChange, initial, existingCount, onSaved }: Props) {
   const [name, setName] = useState('')
   const [icon, setIcon] = useState<string>('food')
+  const [color, setColor] = useState<string>(CATEGORY_COLORS[0])
+  const [nameEdited, setNameEdited] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -26,8 +28,17 @@ export function CategoryDialog({ open, onOpenChange, initial, existingCount, onS
     if (!open) return
     setName(initial?.name ?? '')
     setIcon(initial?.icon ?? 'food')
+    setColor(initial?.color ?? CATEGORY_COLORS[existingCount % CATEGORY_COLORS.length])
+    // An existing name counts as user-written: picking an icon must not clobber it.
+    setNameEdited(Boolean(initial?.name))
     setError(null)
-  }, [open, initial])
+  }, [open, initial, existingCount])
+
+  const chooseIcon = (next: string) => {
+    setIcon(next)
+    // Auto-fill the name from the icon until the user types their own.
+    if (!nameEdited) setName(ICON_LABEL[next] ?? '')
+  }
 
   const submit = async () => {
     if (!name.trim()) {
@@ -38,9 +49,8 @@ export function CategoryDialog({ open, onOpenChange, initial, existingCount, onS
     setError(null)
     try {
       if (initial) {
-        await updateCategory({ data: { id: initial.id, name: name.trim(), icon, color: initial.color } })
+        await updateCategory({ data: { id: initial.id, name: name.trim(), icon, color } })
       } else {
-        const color = CATEGORY_COLORS[existingCount % CATEGORY_COLORS.length]
         await createCategory({ data: { name: name.trim(), icon, color } })
       }
       onSaved()
@@ -56,7 +66,7 @@ export function CategoryDialog({ open, onOpenChange, initial, existingCount, onS
     <Modal open={open} onOpenChange={onOpenChange} title={initial ? 'แก้ไขหมวดหมู่' : 'สร้างหมวดหมู่ใหม่'} width={500}>
       <div className={styles.iconRow}>
         <div className={styles.iconPreview}>
-          <CategoryIcon icon={icon} color={initial?.color ?? CATEGORY_COLORS[existingCount % CATEGORY_COLORS.length]} />
+          <CategoryIcon icon={icon} color={color} />
         </div>
         <div className={ui.inputGroup}>
           <label className={ui.label} htmlFor="category-name">
@@ -66,7 +76,10 @@ export function CategoryDialog({ open, onOpenChange, initial, existingCount, onS
             id="category-name"
             className={ui.input}
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value)
+              setNameEdited(true)
+            }}
             placeholder="อาหาร ค่ารถ ของใช้"
           />
         </div>
@@ -80,7 +93,7 @@ export function CategoryDialog({ open, onOpenChange, initial, existingCount, onS
               key={key}
               type="button"
               className={icon === key ? styles.iconChoiceActive : styles.iconChoice}
-              onClick={() => setIcon(key)}
+              onClick={() => chooseIcon(key)}
               title={ICON_LABEL[key]}
             >
               <Icon size={24} strokeWidth={2} />
@@ -88,6 +101,22 @@ export function CategoryDialog({ open, onOpenChange, initial, existingCount, onS
             </button>
           )
         })}
+      </div>
+
+      <div className={ui.inputGroup}>
+        <span className={ui.label}>สี</span>
+        <div className={styles.colorPicker}>
+          {CATEGORY_COLORS.map((value) => (
+            <button
+              key={value}
+              type="button"
+              className={color === value ? styles.colorSwatchActive : styles.colorSwatch}
+              style={{ background: value }}
+              onClick={() => setColor(value)}
+              aria-label={`เลือกสี ${value}`}
+            />
+          ))}
+        </div>
       </div>
 
       {error ? <p className={styles.error}>{error}</p> : null}

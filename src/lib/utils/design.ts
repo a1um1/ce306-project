@@ -7,7 +7,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-export const CATEGORY_COLORS = ['#FF8D7F', '#D995FF', '#00D89E', '#00CCFF', '#F6A300'] as const
+export { CATEGORY_COLORS } from './palette'
 
 export const CATEGORY_ICONS = ['food', 'transport', 'shopping', 'school', 'other'] as const
 export type CategoryIconName = (typeof CATEGORY_ICONS)[number]
