@@ -1,0 +1,13 @@
+{
+  "name": "kbank-slip-reader",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "slips": "./cli.ts"
+  },
+  "scripts": {
+    "slips": "node cli.ts",
+    "build": "swiftc -O main.swift Sources/*.swift -o bin/slipreader"
+  }
+}

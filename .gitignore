@@ -1,0 +1,10 @@
+node_modules
+.output
+.tanstack
+.vinxi
+.env
+.env.local
+tools/slip-reader/bin
+tools/slip-reader/data
+tools/slip-reader/highlight
+.DS_Store
