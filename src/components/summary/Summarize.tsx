@@ -25,12 +25,10 @@ export function Summarize({ total, rows, slices, bounds, range, year, onRangeCha
 
       <div className={styles.right}>
         <div className={styles.head}>
-          <div className={styles.usage}>
-            <p className={styles.usageLabel}>ยอดใช้จ่าย</p>
-            <p className={styles.usageTotal}>{formatAmount(total)}฿</p>
-          </div>
+          <p className={styles.usageLabel}>ยอดใช้จ่าย</p>
           <RangePicker value={range} year={year} onChange={onRangeChange} onYearChange={onYearChange} />
         </div>
+        <p className={styles.usageTotal}>{formatAmount(total)}฿</p>
 
         {slices.length > 0 ? (
           <ul className={styles.breakdown}>
