@@ -63,16 +63,19 @@ function Donut({ slices }: { slices: BreakdownSlice[] }) {
   )
 }
 
-function Bars({ buckets, label }: { buckets: Bucket[]; label: string }) {
+function Bars({ buckets, label, dense = false }: { buckets: Bucket[]; label: string; dense?: boolean }) {
   const max = Math.max(...buckets.map((b) => b.value), 1)
   return (
-    <div className={styles.bars} role="img" aria-label={label}>
+    <div className={dense ? `${styles.bars} ${styles.barsDense}` : styles.bars} role="img" aria-label={label}>
       {buckets.map((bucket, i) => (
         <div key={i} className={styles.barCol} title={`${bucket.label} ${formatAmount(bucket.value)}฿`}>
           <div className={styles.barSlot}>
             <div className={styles.bar} style={{ height: `${(bucket.value / max) * 100}%` }} />
           </div>
-          <span className={styles.barLabel}>{bucket.label}</span>
+          {/* Keep an empty label so bars stay aligned; dense shows only the ends. */}
+          <span className={styles.barLabel}>
+            {!dense || i === 0 || i === buckets.length - 1 ? bucket.label : ''}
+          </span>
         </div>
       ))}
     </div>
@@ -144,16 +147,20 @@ export function RangeChart({ range, bounds, rows, slices }: Props) {
     )
   }
 
+  // lastMonths ends on the given month, so anchor on the range end: for a full
+  // year that is Dec -> Jan..Dec, for half a year it is the current month.
+  const last = new Date(bounds.to)
   const months = range === 'year' ? 12 : 6
   const totals = monthlyTotals(rows)
   return (
     <Bars
       label={
         range === 'year'
-          ? `รายจ่ายรายเดือนปี ${anchor.getFullYear() + 543}`
+          ? `รายจ่ายรายเดือนปี ${last.getFullYear() + 543}`
           : 'รายจ่ายรายเดือนย้อนหลัง 6 เดือน'
       }
-      buckets={lastMonths(anchor, months).map((month) => ({
+      dense={range === 'year'}
+      buckets={lastMonths(last, months).map((month) => ({
         label: THAI_MONTHS[month.getMonth()],
         value: totals.get(monthKey(month)) ?? 0,
       }))}

@@ -122,7 +122,7 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
         payload: reading.payload,
         externalId: reading.externalId,
         via: reading.via,
-        categoryId: suggested[index] ?? defaultCategoryId,
+        categoryId: suggested[index] ?? null,
         include: Number(reading.amount) > 0 && !duplicate,
         duplicate,
       }
@@ -194,7 +194,7 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
             payee: null,
             amount: Number(item.amount),
             occurredAt: item.dateTime ?? new Date().toISOString(),
-            categoryId: item.categoryId ?? defaultCategoryId,
+            categoryId: item.categoryId,
             source: 'qr' as const,
             qrPayload: item.payload,
             externalId: item.externalId,
