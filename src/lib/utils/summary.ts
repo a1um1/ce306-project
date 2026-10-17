@@ -75,11 +75,15 @@ export function weekDays(date: Date): Date[] {
   return Array.from({ length: 7 }, (_, i) => addDays(monday, i))
 }
 
-// 6 weeks x 7 days from the Sunday on/before the 1st, so the whole month fits.
+// Full weeks that contain this month: the Sunday on/before the 1st through the
+// Saturday on/after the last day, so no all-outside rows are shown.
 export function calendarDays(year: number, month: number): Date[] {
   const first = new Date(year, month, 1)
+  const last = new Date(year, month + 1, 0)
   const start = addDays(first, -first.getDay())
-  return Array.from({ length: 42 }, (_, i) => addDays(start, i))
+  const end = addDays(last, 6 - last.getDay())
+  const count = Math.round((+end - +start) / 86_400_000) + 1
+  return Array.from({ length: count }, (_, i) => addDays(start, i))
 }
 
 // First day of each of the last `count` months, oldest first.

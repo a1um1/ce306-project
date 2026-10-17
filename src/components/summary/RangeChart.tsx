@@ -1,4 +1,4 @@
-import { useRef, useState, type MouseEvent } from 'react'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { THAI_MONTHS, formatAmount, toDateKey, type RangeKey } from '@/lib/utils/format'
 import {
   calendarDays,
@@ -25,11 +25,17 @@ function Donut({ slices, show }: { slices: BreakdownSlice[]; show: ShowFn }) {
   const radius = (SIZE - THICKNESS) / 2
   const circumference = 2 * Math.PI * radius
   const total = slices.reduce((sum, s) => sum + s.value, 0)
+  // Start collapsed, then grow on the next frame so CSS can transition the sweep.
+  const [grown, setGrown] = useState(false)
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setGrown(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
 
   let offset = 0
   const arcs = slices
     .filter((s) => s.value > 0)
-    .map((s) => {
+    .map((s, i) => {
       const length = (s.value / total) * circumference
       const value = `${formatAmount(s.value)}฿ · ${((s.value / total) * 100).toFixed(0)}%`
       const arc = (
@@ -42,8 +48,9 @@ function Donut({ slices, show }: { slices: BreakdownSlice[]; show: ShowFn }) {
           fill="none"
           stroke={s.color ?? '#d9d9d9'}
           strokeWidth={THICKNESS}
-          strokeDasharray={`${length} ${circumference - length}`}
+          strokeDasharray={grown ? `${length} ${circumference - length}` : `0 ${circumference}`}
           strokeDashoffset={-offset}
+          style={{ transitionDelay: `${i * 60}ms` }}
           onMouseEnter={(e) => show(e, s.name, value)}
           onMouseMove={(e) => show(e, s.name, value)}
         />
@@ -107,11 +114,13 @@ function Bars({
 
 function Calendar({
   days,
+  month,
   totals,
   label,
   show,
 }: {
   days: Date[]
+  month: number
   totals: Map<string, number>
   label: string
   show: ShowFn
@@ -121,15 +130,27 @@ function Calendar({
   return (
     <div className={styles.calendar}>
       <span className={styles.calendarLabel}>{label}</span>
+      <div className={styles.calendarHead} aria-hidden="true">
+        {WEEKDAYS.map((day, i) => (
+          <span key={i} className={styles.calendarWeekday}>
+            {day}
+          </span>
+        ))}
+      </div>
       <div className={styles.calendarGrid} role="img" aria-label={label}>
         {days.map((day, i) => {
           const title = `${day.getDate()} ${THAI_MONTHS[day.getMonth()]}`
           const value = `${formatAmount(values[i])}฿`
+          const outside = day.getMonth() !== month
           return (
             <span
               key={i}
-              className={styles.dot}
-              style={{ opacity: values[i] === 0 ? 0.15 : 0.35 + 0.65 * (values[i] / max) }}
+              className={outside ? styles.dotOutside : styles.dot}
+              style={
+                outside
+                  ? undefined
+                  : { opacity: values[i] === 0 ? 0.15 : 0.35 + 0.65 * (values[i] / max) }
+              }
               onMouseEnter={(e) => show(e, title, value)}
               onMouseMove={(e) => show(e, title, value)}
             />
@@ -180,6 +201,7 @@ export function RangeChart({ range, bounds, rows, slices }: Props) {
     chart = (
       <Calendar
         days={calendarDays(anchor.getFullYear(), anchor.getMonth())}
+        month={anchor.getMonth()}
         totals={dailyTotals(rows)}
         label={`${THAI_MONTHS[anchor.getMonth()]} ${anchor.getFullYear() + 543}`}
         show={show}

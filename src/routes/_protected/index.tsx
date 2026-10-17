@@ -9,7 +9,13 @@ import { Summarize } from "@/components/summary/Summarize";
 import { TransactionList } from "@/components/transactions/TransactionList";
 import page from "@/components/layout/page.module.css";
 import { listCategories } from "@/lib/api/categories";
-import { RANGE_ORDER, rangeBounds, rangeKeyFor, toDateKey, type RangeKey } from "@/lib/utils/format";
+import {
+  RANGE_ORDER,
+  rangeBounds,
+  rangeKeyFor,
+  toDateKey,
+  type RangeKey,
+} from "@/lib/utils/format";
 import { buildBreakdown } from "@/lib/utils/summary";
 import { useExpenses } from "@/lib/hooks/use-expenses";
 
@@ -46,7 +52,8 @@ function Dashboard() {
   const [addOpen, setAddOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
 
-  const setRange = (key: RangeKey) => void navigate({ search: (prev) => ({ ...prev, range: key }) });
+  const setRange = (key: RangeKey) =>
+    void navigate({ search: (prev) => ({ ...prev, range: key }) });
   const setYear = (next: number) =>
     void navigate({ search: (prev) => ({ ...prev, year: next, range: "year" }) });
 
@@ -77,7 +84,8 @@ function Dashboard() {
   // (imported slips carry their own past date) and refetch.
   useEffect(() => {
     const handler = (event: Event) => {
-      const earliest = (event as CustomEvent<{ earliestAt: string | null }>).detail?.earliestAt ?? undefined;
+      const earliest =
+        (event as CustomEvent<{ earliestAt: string | null }>).detail?.earliestAt ?? undefined;
       onImported(earliest);
     };
     window.addEventListener(IMPORTED_EVENT, handler);
@@ -89,8 +97,6 @@ function Dashboard() {
       <AppHeader user={user} categories={categories} onChanged={refresh} />
 
       <div className={page.container}>
-        <h1 className={page.pageTitle}>Dashboard</h1>
-
         <Summarize
           total={total}
           rows={rows}

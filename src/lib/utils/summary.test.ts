@@ -50,11 +50,16 @@ test('the week starts Monday and runs seven days', () => {
   assert.equal(days[0].getDate(), 12)
 })
 
-test('the calendar grid covers the whole month', () => {
+test('the calendar grid covers the whole month with no all-outside rows', () => {
   const days = calendarDays(2026, 9)
-  assert.equal(days.length, 42)
-  assert.equal(days[0].getDay(), 0)
+  assert.equal(days.length % 7, 0)
+  assert.equal(days[0].getDay(), 0) // starts on a Sunday
+  assert.equal(days[days.length - 1].getDay(), 6) // ends on a Saturday
   assert.ok(days.some((d) => d.getMonth() === 9 && d.getDate() === 31))
+  // every week row contains at least one day of the month
+  for (let i = 0; i < days.length; i += 7) {
+    assert.ok(days.slice(i, i + 7).some((d) => d.getMonth() === 9))
+  }
 })
 
 test('last six months end on the current month', () => {
