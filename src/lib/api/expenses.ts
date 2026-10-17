@@ -2,6 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { and, desc, eq, gte, isNotNull, lte } from 'drizzle-orm'
 import { db } from '@/db'
 import { category, expense } from '@/db/schema'
+import { rememberMerchant } from './merchant-rules'
 import { requireUser } from './session'
 
 export type ExpenseFilter = { from?: string; to?: string; categoryId?: string }
@@ -89,6 +90,7 @@ export const createExpense = createServerFn({ method: 'POST' })
       .insert(expense)
       .values({ ...toRow(data), userId: user.id })
       .returning()
+    await rememberMerchant(user.id, data.title, data.categoryId)
     return row
   })
 
@@ -129,6 +131,7 @@ export const updateExpense = createServerFn({ method: 'POST' })
       })
       .where(and(eq(expense.id, data.id), eq(expense.userId, user.id)))
       .returning()
+    await rememberMerchant(user.id, data.title, data.categoryId)
     return row ?? null
   })
 

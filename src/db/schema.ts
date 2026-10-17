@@ -62,6 +62,23 @@ export const category = pgTable('category', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
+export const merchantRule = pgTable(
+  'merchant_rule',
+  {
+    id: text('id').primaryKey(),
+    // NULL user_id = built-in seed rule, shared by everyone. A user rule with
+    // the same key overrides the seed.
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(), // merchantCore(title), see lib/utils/categorize.ts
+    categoryId: text('category_id')
+      .notNull()
+      .references(() => category.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex('merchant_rule_user_key_idx').on(table.userId, table.key)],
+)
+
 export const expense = pgTable(
   'expense',
   {

@@ -1,8 +1,9 @@
 import { createServerFn } from '@tanstack/react-start'
-import { and, asc, desc, eq, isNotNull, or, sql } from 'drizzle-orm'
+import { and, asc, eq, or, sql } from 'drizzle-orm'
 import { db } from '@/db'
-import { category, expense } from '@/db/schema'
-import { suggestCategoryId, type CategoryHistory } from '@/lib/utils/categorize'
+import { category } from '@/db/schema'
+import { suggestCategoryId } from '@/lib/utils/categorize'
+import { loadMerchantRules } from './merchant-rules'
 import { requireUser } from './session'
 
 export type CategoryInput = { name: string; icon: string; color: string }
@@ -18,33 +19,16 @@ export const listCategories = createServerFn({ method: 'GET' }).handler(async ()
     .orderBy(sql`${category.userId} asc nulls first`, asc(category.createdAt))
 })
 
-// Auto-categoriser: with no model involved it leans on the user's own past
-// choices first, then on category names appearing in the slip text.
+// Auto-categoriser: exact merchant memory. A slip is labelled only when its
+// merchant was seen before (a seed brand, or a merchant the user categorised).
+// Unknown merchants stay uncategorised — guessing is what filled "อาหาร" with
+// 94% of the imported slips.
 export const suggestCategories = createServerFn({ method: 'POST' })
   .validator((data: { texts: string[] }) => data)
   .handler(async ({ data }) => {
     const user = await requireUser()
-    const [options, rows] = await Promise.all([
-      db
-        .select({ id: category.id, name: category.name })
-        .from(category)
-        .where(or(sql`${category.userId} is null`, eq(category.userId, user.id))),
-      db
-        .select({ title: expense.title, payee: expense.payee, categoryId: expense.categoryId })
-        .from(expense)
-        .where(and(eq(expense.userId, user.id), isNotNull(expense.categoryId)))
-        .orderBy(desc(expense.occurredAt))
-        .limit(500),
-    ])
-
-    const history: CategoryHistory[] = []
-    for (const row of rows) {
-      if (!row.categoryId) continue
-      if (row.title) history.push({ text: row.title, categoryId: row.categoryId })
-      if (row.payee) history.push({ text: row.payee, categoryId: row.categoryId })
-    }
-
-    return data.texts.map((text) => suggestCategoryId(text, options, history))
+    const rules = await loadMerchantRules(user.id)
+    return data.texts.map((text) => suggestCategoryId(text, rules))
   })
 
 export const createCategory = createServerFn({ method: 'POST' })

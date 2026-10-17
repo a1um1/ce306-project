@@ -1,9 +1,4 @@
-export type CategoryOption = { id: string; name: string }
-export type CategoryHistory = { text: string; categoryId: string }
-
-const MIN_MATCH = 3
-const MATCH_COVERAGE = 0.5
-const HISTORY_MIN = 4
+export type MerchantRule = { key: string; categoryId: string }
 
 // Thai tone marks are separate code points and only add noise to matching.
 export function normalizeText(value: string): string {
@@ -15,51 +10,33 @@ export function normalizeText(value: string): string {
     .replace(/[^\p{L}\p{N}]/gu, '')
 }
 
-function longestPrefixInText(categoryName: string, text: string, min: number): number {
-  for (let length = categoryName.length; length >= min; length--) {
-    if (text.includes(categoryName.slice(0, length))) return length
-  }
-  return 0
+// Bank boilerplate that says nothing about what was bought.
+const NOISE = /(บจก|บมจ|จำกัด|จากัด|companylimited|publiccompanylimited|coltd|wallet|qrpaymentat|qrpayment|qrpurchase|paymentto)/g
+
+// Stable identity of a merchant: "TrueMoney Wallet", "TRUE MONEY COMPANY
+// LIMITED <ref>" and "TrueMoney" all collapse to "truemoney". The bank appends
+// honorifics, company suffixes and hex/digit reference codes that vary per
+// slip, so they are stripped here and never stored.
+export function merchantCore(text: string): string {
+  return normalizeText(text)
+    .replace(/^(นาย|นางสาว|นาง|นส|คุณ)/, '')
+    .replace(NOISE, '')
+    .replace(/[0-9a-f]{8,}/g, '')
+    .replace(/\d+/g, '')
 }
 
-// How much of the category name shows up inside the slip text. The match must
-// start at the name's first character: Thai names share stray runs like "นทา",
-// so a match anywhere ("นายสุรัตนทาราช" vs "เดินทาง") would be a false positive.
-export function nameScore(text: string, categoryName: string): number {
-  if (categoryName.length < MIN_MATCH) return 0
-  const matched = longestPrefixInText(categoryName, text, MIN_MATCH)
-  if (matched === 0) return 0
-  const score = matched / categoryName.length
-  return score >= MATCH_COVERAGE ? score : 0
-}
+// Auto-categoriser: exact merchant memory only. A slip is labelled when its
+// merchant core was seen before (a seed brand, or a merchant the user already
+// categorised). Anything unseen stays uncategorised — no guessing, so the
+// keyword-substring false positives ("เนตร" as "เน็ต") cannot happen.
+// `rules` is ordered seed-first, user-last: the user's choice wins.
+export function suggestCategoryId(text: string, rules: MerchantRule[]): string | null {
+  const core = merchantCore(text)
+  if (!core) return null
 
-export function suggestCategoryId(
-  text: string,
-  categories: CategoryOption[],
-  history: CategoryHistory[],
-): string | null {
-  const needle = normalizeText(text)
-  if (needle.length < MIN_MATCH) return null
-
-  let best: { score: number; id: string } | null = null
-
-  // A merchant seen before wins: that is the category the user actually chose.
-  // `history` is ordered newest first, so ties keep the most recent choice.
-  for (const entry of history) {
-    const key = normalizeText(entry.text)
-    if (key.length < HISTORY_MIN) continue
-    let score = 0
-    if (key === needle) score = 1
-    else if (needle.length >= HISTORY_MIN && needle.includes(key)) score = 0.9
-    else if (needle.length >= HISTORY_MIN && key.includes(needle)) score = 0.8
-    if (score > 0 && (!best || score > best.score)) best = { score, id: entry.categoryId }
+  let found: string | null = null
+  for (const rule of rules) {
+    if (merchantCore(rule.key) === core) found = rule.categoryId
   }
-  if (best) return best.id
-
-  for (const category of categories) {
-    const score = nameScore(needle, normalizeText(category.name))
-    if (score > (best?.score ?? 0)) best = { score, id: category.id }
-  }
-
-  return best?.id ?? null
+  return found
 }

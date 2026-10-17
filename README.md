@@ -15,7 +15,8 @@ Track your own spending. TanStack Start + Better Auth (Google) + Drizzle + Postg
 pnpm install
 cp .env.example .env          # then fill BETTER_AUTH_SECRET + Google creds
 pnpm db:up                    # start Postgres
-pnpm db:migrate               # create auth tables
+pnpm db:migrate               # create tables
+pnpm db:seed                  # insert built-in categories + merchant rules
 pnpm dev                      # http://localhost:3000
 ```
 
@@ -37,6 +38,8 @@ Generate the auth secret with `openssl rand -base64 32`.
 | `pnpm typecheck` | TypeScript check |
 | `pnpm db:up` / `db:down` | Start / stop Postgres |
 | `pnpm db:generate` / `db:migrate` | Drizzle migrations |
+| `pnpm db:seed` | Insert built-in categories + seed merchant rules (idempotent) |
+| `pnpm db:reset` | Wipe all data and re-seed built-ins (keeps schema) |
 | `pnpm db:studio` | Drizzle Studio |
 
 ## Layout
