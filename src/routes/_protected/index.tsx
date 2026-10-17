@@ -1,4 +1,4 @@
-import { createFileRoute, getRouteApi, useRouter } from "@tanstack/react-router";
+import { createFileRoute, getRouteApi, Link, useRouter } from "@tanstack/react-router";
 import { Pen } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AddExpenseDialog } from "@/components/expense/AddExpenseDialog";
@@ -8,16 +8,14 @@ import { Summarize } from "@/components/summary/Summarize";
 import { TransactionList } from "@/components/transactions/TransactionList";
 import page from "@/components/layout/page.module.css";
 import { listCategories } from "@/lib/api/categories";
-import {
-  RANGE_LABEL,
-  RANGE_ORDER,
-  rangeBounds,
-  rangeKeyFor,
-  type RangeKey,
-} from "@/lib/utils/format";
+import { RANGE_ORDER, rangeBounds, rangeKeyFor, type RangeKey } from "@/lib/utils/format";
+import { buildBreakdown } from "@/lib/utils/summary";
 import { useExpenses } from "@/lib/hooks/use-expenses";
 
 const parent = getRouteApi("/_protected");
+
+// The dashboard teases the newest few; the rest live on the transactions page.
+const PREVIEW_COUNT = 10;
 
 export const Route = createFileRoute("/_protected/")({
   loader: async () => ({ categories: await listCategories() }),
@@ -38,12 +36,9 @@ function Dashboard() {
   const { rows, loading } = useExpenses(bounds, reload);
 
   const total = rows.reduce((sum, r) => sum + Number(r.amount), 0);
-  const byColor = new Map<string, number>();
-  for (const r of rows) {
-    const color = r.categoryColor ?? "#d9d9d9";
-    byColor.set(color, (byColor.get(color) ?? 0) + Number(r.amount));
-  }
-  const segments = [...byColor].map(([color, value]) => ({ color, value }));
+  const slices = buildBreakdown(rows);
+  const preview = rows.slice(0, PREVIEW_COUNT);
+  const hidden = rows.length - preview.length;
 
   const refresh = () => {
     setReload((n) => n + 1);
@@ -67,12 +62,20 @@ function Dashboard() {
       <AppHeader user={user} categories={categories} onChanged={refresh} />
 
       <div className={page.container}>
-        <Summarize total={total} segments={segments} range={range} onRangeChange={setRange} />
+        <h1 className={page.pageTitle}>Dashboard</h1>
+
+        <Summarize
+          total={total}
+          rows={rows}
+          slices={slices}
+          bounds={bounds}
+          range={range}
+          onRangeChange={setRange}
+        />
 
         <div className={page.headerRow}>
           <h2 className={page.listTitle}>ประวัติธรุกรรม</h2>
           <div className={page.actions}>
-            <span className={page.pill}>{RANGE_LABEL[range]}</span>
             <button type="button" className={page.addButton} onClick={() => setAddOpen(true)}>
               <Pen size={24} strokeWidth={2} />
               จดเพิ่ม
@@ -81,12 +84,18 @@ function Dashboard() {
         </div>
 
         <TransactionList
-          rows={rows}
+          rows={preview}
           loading={loading}
           categories={categories}
           empty="ยังไม่มีรายจ่ายในช่วงนี้"
           onChanged={refresh}
         />
+
+        {hidden > 0 ? (
+          <Link to="/transactions" className={page.viewAllButton}>
+            ดูทั้งหมด {rows.length} รายการ
+          </Link>
+        ) : null}
       </div>
 
       <AddExpenseDialog

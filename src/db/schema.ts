@@ -53,11 +53,10 @@ export const verification = pgTable('verification', {
 
 export const category = pgTable('category', {
   id: text('id').primaryKey(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
+  // NULL user_id = built-in category, shared by everyone and not editable.
+  userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  icon: text('icon').notNull(), // food | transport | shopping | school | other
+  icon: text('icon').notNull(), // see CATEGORY_ICONS in lib/utils/design.ts
   color: text('color').notNull(), // hex
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

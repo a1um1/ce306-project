@@ -1,15 +1,43 @@
 import {
   Car,
+  Gift,
   GraduationCap,
+  HandHeart,
+  HeartPulse,
+  House,
+  PawPrint,
+  Plane,
+  Popcorn,
+  Receipt,
   Shapes,
   ShoppingBag,
+  Smartphone,
+  Sparkles,
   Utensils,
+  Users,
   type LucideIcon,
 } from 'lucide-react'
 
 export { CATEGORY_COLORS } from './palette'
 
-export const CATEGORY_ICONS = ['food', 'transport', 'shopping', 'school', 'other'] as const
+export const CATEGORY_ICONS = [
+  'food',
+  'transport',
+  'shopping',
+  'school',
+  'home',
+  'health',
+  'fun',
+  'bills',
+  'phone',
+  'personal',
+  'family',
+  'gift',
+  'donation',
+  'pet',
+  'travel',
+  'other',
+] as const
 export type CategoryIconName = (typeof CATEGORY_ICONS)[number]
 
 export const ICON_COMPONENT: Record<string, LucideIcon> = {
@@ -17,13 +45,35 @@ export const ICON_COMPONENT: Record<string, LucideIcon> = {
   transport: Car,
   shopping: ShoppingBag,
   school: GraduationCap,
+  home: House,
+  health: HeartPulse,
+  fun: Popcorn,
+  bills: Receipt,
+  phone: Smartphone,
+  personal: Sparkles,
+  family: Users,
+  gift: Gift,
+  donation: HandHeart,
+  pet: PawPrint,
+  travel: Plane,
   other: Shapes,
 }
 
 export const ICON_LABEL: Record<string, string> = {
   food: 'อาหาร',
-  transport: 'ค่ารถ',
-  shopping: 'ช็อปปิ้ง',
+  transport: 'ค่าเดินทาง',
+  shopping: 'ช้อปปิ้ง',
   school: 'ค่าเล่าเรียน',
+  home: 'ที่พัก',
+  health: 'สุขภาพ',
+  fun: 'บันเทิง',
+  bills: 'บิล',
+  phone: 'มือถือ/เน็ต',
+  personal: 'ของใช้ส่วนตัว',
+  family: 'ครอบครัว',
+  gift: 'ของขวัญ',
+  donation: 'ทำบุญ',
+  pet: 'สัตว์เลี้ยง',
+  travel: 'ท่องเที่ยว',
   other: 'อื่น ๆ',
 }

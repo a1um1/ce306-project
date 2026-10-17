@@ -13,10 +13,14 @@ type Props = {
 }
 
 export function ManageCategoriesDialog({ open, onOpenChange, categories, onEdit, onNew }: Props) {
+  const mine = categories.filter((c) => c.userId)
+  const builtIn = categories.filter((c) => !c.userId)
+
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="หมวดหมู่" width={500}>
+    <Modal open={open} onOpenChange={onOpenChange} title="หมวดหมู่" width={520}>
+      <span className={ui.label}>หมวดหมู่ของฉัน</span>
       <div className={styles.catList}>
-        {categories.map((c) => (
+        {mine.map((c) => (
           <div key={c.id} className={styles.catListItem}>
             <CategoryIcon icon={c.icon} color={c.color} size={40} />
             <span className={styles.catListName}>{c.name}</span>
@@ -25,11 +29,22 @@ export function ManageCategoriesDialog({ open, onOpenChange, categories, onEdit,
             </button>
           </div>
         ))}
-        {categories.length === 0 ? <span className={styles.emptyHint}>ยังไม่มีหมวดหมู่</span> : null}
+        {mine.length === 0 ? <span className={styles.emptyHint}>ยังไม่มีหมวดหมู่ที่คุณสร้าง</span> : null}
       </div>
+
       <button type="button" className={ui.primary} onClick={onNew}>
         สร้างใหม่
       </button>
+
+      <span className={ui.label}>หมวดหมู่พื้นฐาน (ใช้ร่วมกัน แก้ไขไม่ได้)</span>
+      <div className={styles.categoryGrid}>
+        {builtIn.map((c) => (
+          <div key={c.id} className={styles.catFixed}>
+            <CategoryIcon icon={c.icon} color={c.color} size={36} />
+            <span>{c.name}</span>
+          </div>
+        ))}
+      </div>
     </Modal>
   )
 }

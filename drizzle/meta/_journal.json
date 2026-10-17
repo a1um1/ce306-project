@@ -22,6 +22,13 @@
       "when": 1792229645696,
       "tag": "0002_little_mongu",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792231201775,
+      "tag": "0003_glorious_nebula",
+      "breakpoints": true
     }
   ]
 }

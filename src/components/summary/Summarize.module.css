@@ -12,17 +12,80 @@
 .chartWrap {
   display: flex;
   align-items: center;
+  justify-content: center;
   padding: 10px 0;
   flex: 0 0 auto;
+  min-width: 200px;
+}
+
+/* week / half-year bars */
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  height: 160px;
+}
+
+.barCol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+}
+
+.barSlot {
+  flex: 1 1 0;
+  width: 26px;
+  display: flex;
+  align-items: flex-end;
+  background: #f7f2e8;
+  border-radius: 13px;
+  overflow: hidden;
+}
+
+.bar {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 13px;
+  background: var(--primary);
+}
+
+.barLabel {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* month calendar heat map */
+.calendar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.calendarLabel {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.calendarGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+}
+
+.dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 100%;
+  background: #f6a300;
 }
 
 .usage {
-  flex: 1 1 0;
-  min-width: 1px;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 5px 0;
 }
 
 .usageLabel {
@@ -36,4 +99,68 @@
   font-size: 48px;
   font-weight: 700;
   line-height: 1.1;
+}
+
+.right {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.breakdown {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  max-height: 168px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.breakdownItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.breakdownName {
+  flex: 0 0 92px;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.breakdownTrack {
+  flex: 1 1 0;
+  min-width: 20px;
+  height: 8px;
+  border-radius: 4px;
+  background: #f2ece1;
+  overflow: hidden;
+}
+
+.breakdownFill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+}
+
+.breakdownValue {
+  flex: 0 0 84px;
+  text-align: right;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
 }

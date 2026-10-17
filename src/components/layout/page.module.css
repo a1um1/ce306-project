@@ -84,6 +84,24 @@
   text-align: center;
 }
 
+.viewAllButton {
+  align-self: center;
+  margin-top: 12px;
+  padding: 12px 32px;
+  border-radius: 84px;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  font-size: 16px;
+  font-weight: 500;
+  text-decoration: none;
+  color: inherit;
+}
+
+.viewAllButton:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
 /* filter bar (transactions page) */
 .filters {
   display: flex;

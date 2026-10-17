@@ -6,7 +6,7 @@ import { createCategory, updateCategory } from '@/lib/api/categories'
 import ui from '@/components/ui/ui.module.css'
 import styles from '@/components/ui/dialogs.module.css'
 
-export type CategoryRecord = { id: string; name: string; icon: string; color: string }
+export type CategoryRecord = { id: string; name: string; icon: string; color: string; userId?: string | null }
 
 type Props = {
   open: boolean

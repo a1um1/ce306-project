@@ -1,71 +1,56 @@
+import { CategoryIcon } from '@/components/category/CategoryIcon'
+import { RangeChart } from './RangeChart'
 import { RangePicker } from './RangePicker'
 import { formatAmount, type RangeKey } from '@/lib/utils/format'
+import type { BreakdownSlice, SummaryRow } from '@/lib/utils/summary'
 import styles from './Summarize.module.css'
-
-export type Segment = { color: string; value: number }
-
-const SIZE = 200
-const THICKNESS = 34
-
-function Donut({ segments }: { segments: Segment[] }) {
-  const center = SIZE / 2
-  const radius = (SIZE - THICKNESS) / 2
-  const circumference = 2 * Math.PI * radius
-  const total = segments.reduce((sum, s) => sum + s.value, 0)
-
-  let offset = 0
-  const arcs = segments
-    .filter((s) => s.value > 0)
-    .map((s, i) => {
-      const length = (s.value / total) * circumference
-      const arc = (
-        <circle
-          key={i}
-          cx={center}
-          cy={center}
-          r={radius}
-          fill="none"
-          stroke={s.color}
-          strokeWidth={THICKNESS}
-          strokeDasharray={`${length} ${circumference - length}`}
-          strokeDashoffset={-offset}
-        />
-      )
-      offset += length
-      return arc
-    })
-
-  return (
-    <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label="สัดส่วนรายจ่ายตามหมวดหมู่">
-      <g transform={`rotate(-90 ${center} ${center})`}>
-        {total === 0 ? (
-          <circle cx={center} cy={center} r={radius} fill="none" stroke="#e9e9e9" strokeWidth={THICKNESS} />
-        ) : (
-          arcs
-        )}
-      </g>
-    </svg>
-  )
-}
 
 type Props = {
   total: number
-  segments: Segment[]
+  rows: SummaryRow[]
+  slices: BreakdownSlice[]
+  bounds: { from: string; to: string }
   range: RangeKey
   onRangeChange: (key: RangeKey) => void
 }
 
-export function Summarize({ total, segments, range, onRangeChange }: Props) {
+export function Summarize({ total, rows, slices, bounds, range, onRangeChange }: Props) {
   return (
     <section className={styles.card}>
       <div className={styles.chartWrap}>
-        <Donut segments={segments} />
+        <RangeChart range={range} bounds={bounds} rows={rows} slices={slices} />
       </div>
-      <div className={styles.usage}>
-        <p className={styles.usageLabel}>ยอดใช้จ่าย</p>
-        <p className={styles.usageTotal}>{formatAmount(total)}฿</p>
+
+      <div className={styles.right}>
+        <div className={styles.head}>
+          <div className={styles.usage}>
+            <p className={styles.usageLabel}>ยอดใช้จ่าย</p>
+            <p className={styles.usageTotal}>{formatAmount(total)}฿</p>
+          </div>
+          <RangePicker value={range} onChange={onRangeChange} />
+        </div>
+
+        {slices.length > 0 ? (
+          <ul className={styles.breakdown}>
+            {slices.map((slice) => (
+              <li key={slice.key} className={styles.breakdownItem}>
+                <CategoryIcon icon={slice.icon ?? 'other'} color={slice.color ?? '#d9d9d9'} size={32} />
+                <span className={styles.breakdownName}>{slice.name}</span>
+                <span className={styles.breakdownTrack}>
+                  <span
+                    className={styles.breakdownFill}
+                    style={{
+                      width: `${total > 0 ? (slice.value / total) * 100 : 0}%`,
+                      background: slice.color ?? '#d9d9d9',
+                    }}
+                  />
+                </span>
+                <span className={styles.breakdownValue}>{formatAmount(slice.value)}฿</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
-      <RangePicker value={range} onChange={onRangeChange} />
     </section>
   )
 }
