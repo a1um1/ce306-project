@@ -1,12 +1,12 @@
-import { Lock, Pen, QrCode, X } from 'lucide-react'
+import { Lock, Pen, QrCode } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { CategoryGrid } from '@/components/category/CategoryGrid'
 import type { CategoryRecord } from '@/components/category/CategoryDialog'
 import { Modal } from '@/components/ui/Modal'
-import { createExpense, importExpenses, listImportedExternalIds } from '@/lib/api/expenses'
-import { suggestCategories } from '@/lib/api/categories'
-import { formatAmount, formatThaiDate } from '@/lib/utils/format'
-import { readSlipFiles } from '@/lib/utils/read-slip'
+import { createExpense } from '@/lib/api/expenses'
+import { createImportJob } from '@/lib/api/import-jobs'
+import { prepareUploads } from '@/lib/utils/read-slip'
+import { IMPORT_STARTED_EVENT, IMPORT_WATCH_KEY } from './ImportBanner'
 import ui from '@/components/ui/ui.module.css'
 import styles from '@/components/ui/dialogs.module.css'
 
@@ -18,28 +18,7 @@ type Props = {
   onNewCategory: () => void
 }
 
-type BatchItem = {
-  key: string
-  thumb: string
-  title: string
-  amount: string
-  dateTime: string | null
-  payload: string | null
-  externalId: string | null
-  via: 'ocr' | 'qr' | 'none'
-  /** Auto-suggested, then editable per row. */
-  categoryId: string | null
-  include: boolean
-  duplicate: boolean
-}
-
 const QUICK_ADD = [5, 10, 50, 100, 500, 1000]
-
-const VIA_LABEL: Record<BatchItem['via'], string> = {
-  ocr: 'อ่านสลิป',
-  qr: 'อ่าน QR',
-  none: 'อ่านไม่ได้',
-}
 
 export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNewCategory }: Props) {
   const [step, setStep] = useState<'choose' | 'form'>('choose')
@@ -50,9 +29,10 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
   const [payee, setPayee] = useState('')
   const [categoryId, setCategoryId] = useState<string | null>(null)
 
-  const [phase, setPhase] = useState<'pick' | 'processing' | 'summary'>('pick')
+  // Slips are handed to a background job, so there is no review step: pick, then
+  // upload. `saving` is the hand-off itself.
+  const [phase, setPhase] = useState<'pick' | 'upload' | 'saving'>('pick')
   const [progress, setProgress] = useState({ done: 0, total: 0 })
-  const [items, setItems] = useState<BatchItem[]>([])
   const [dragging, setDragging] = useState(false)
 
   const [busy, setBusy] = useState(false)
@@ -71,7 +51,6 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
     setTitle('')
     setPayee('')
     setCategoryId(null)
-    setItems([])
     setPhase('pick')
     setProgress({ done: 0, total: 0 })
     setError(null)
@@ -88,48 +67,33 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
     setSource('qr')
     setStep('form')
     setPhase('pick')
-    setItems([])
   }
 
+  // Prepare the images, hand them to the server, and close: the import runs in
+  // the background and the progress banner takes over.
   const readFiles = async (files: File[]) => {
     const images = files.filter((file) => file.type.startsWith('image/'))
     if (images.length === 0) return
-    setPhase('processing')
+    setError(null)
+    setPhase('upload')
     setProgress({ done: 0, total: images.length })
-    setItems([])
 
-    const readings = await readSlipFiles(images, (done, total) => setProgress({ done, total }))
-
-    // Duplicate guard and category guess are independent lookups.
-    const [known, suggested] = await Promise.all([
-      listImportedExternalIds().catch(() => [] as string[]),
-      suggestCategories({ data: { texts: readings.map((reading) => reading.title) } }).catch(() =>
-        readings.map(() => null),
-      ),
-    ])
-
-    // Anything already stored, plus repeats inside this batch, is a duplicate.
-    const seen = new Set(known)
-    const parsed = readings.map((reading, index): BatchItem => {
-      const duplicate = Boolean(reading.externalId && seen.has(reading.externalId))
-      if (reading.externalId) seen.add(reading.externalId)
-      return {
-        key: crypto.randomUUID(),
-        thumb: reading.thumb,
-        title: reading.title,
-        amount: reading.amount,
-        dateTime: reading.dateTime,
-        payload: reading.payload,
-        externalId: reading.externalId,
-        via: reading.via,
-        categoryId: suggested[index] ?? null,
-        include: Number(reading.amount) > 0 && !duplicate,
-        duplicate,
+    try {
+      const prepared = await prepareUploads(images, (done, total) => setProgress({ done, total }))
+      setPhase('saving')
+      const { id } = await createImportJob({ data: { images: prepared } })
+      if (!id) {
+        setError('ไม่พบรูปที่อ่านได้ ลองอีกครั้ง')
+        setPhase('pick')
+        return
       }
-    })
-
-    setItems(parsed)
-    setPhase('summary')
+      localStorage.setItem(IMPORT_WATCH_KEY, id)
+      window.dispatchEvent(new Event(IMPORT_STARTED_EVENT))
+      onOpenChange(false)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'อัปโหลดไม่สำเร็จ ลองอีกครั้ง')
+      setPhase('pick')
+    }
   }
 
   const onFileInput = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -143,17 +107,6 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
     setDragging(false)
     void readFiles(Array.from(event.dataTransfer.files))
   }
-
-  const updateItem = (key: string, patch: Partial<BatchItem>) => {
-    setItems((prev) => prev.map((item) => (item.key === key ? { ...item, ...patch } : item)))
-  }
-
-  const removeItem = (key: string) => {
-    setItems((prev) => prev.filter((item) => item.key !== key))
-  }
-
-  const included = items.filter((item) => item.include && !item.duplicate && Number(item.amount) > 0)
-  const batchTotal = included.reduce((sum, item) => sum + Number(item.amount), 0)
 
   const submitManual = async () => {
     const value = Number(amount)
@@ -182,49 +135,12 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
     }
   }
 
-  const submitBatch = async () => {
-    if (included.length === 0) return
-    setBusy(true)
-    setError(null)
-    try {
-      await importExpenses({
-        data: {
-          items: included.map((item) => ({
-            title: item.title.trim() || 'สลิป',
-            payee: null,
-            amount: Number(item.amount),
-            occurredAt: item.dateTime ?? new Date().toISOString(),
-            categoryId: item.categoryId,
-            source: 'qr' as const,
-            qrPayload: item.payload,
-            externalId: item.externalId,
-          })),
-        },
-      })
-      const earliest = included
-        .map((item) => (item.dateTime ? new Date(item.dateTime).getTime() : Date.now()))
-        .reduce((min, time) => Math.min(min, time), Number.POSITIVE_INFINITY)
-      onSaved(Number.isFinite(earliest) ? new Date(earliest).toISOString() : undefined)
-      onOpenChange(false)
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'นำเข้าไม่สำเร็จ ลองอีกครั้ง')
-    } finally {
-      setBusy(false)
-    }
-  }
-
   const modalTitle =
-    step === 'choose'
-      ? 'เลือกวิธีการเพิ่ม'
-      : source === 'qr'
-        ? phase === 'summary'
-          ? 'ตรวจสอบก่อนนำเข้า'
-          : 'อัปโหลด QR สลิป'
-        : 'กรอกข้อมูลรายจ่าย'
+    step === 'choose' ? 'เลือกวิธีการเพิ่ม' : source === 'qr' ? 'อัปโหลดสลิป / QR' : 'กรอกข้อมูลรายจ่าย'
 
-  // Reading or reviewing slips holds unsaved work: don't let a stray click or
+  // Preparing or sending the batch is unsaved work: don't let a stray click or
   // Escape throw it away. The close button still works.
-  const importing = source === 'qr' && (phase === 'processing' || phase === 'summary')
+  const importing = source === 'qr' && (phase === 'upload' || phase === 'saving')
 
   return (
     <Modal
@@ -253,8 +169,8 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
           </button>
         </div>
       ) : source === 'qr' ? (
-        <>
-          {phase === 'pick' ? (
+        phase === 'pick' ? (
+          <>
             <button
               type="button"
               className={dragging ? styles.dropzoneActive : styles.dropzone}
@@ -268,148 +184,27 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
             >
               <QrCode size={40} strokeWidth={1.5} />
               <span className={styles.dropzoneText}>ลากรูปสลิปมาวาง หรือกดเลือกไฟล์</span>
-              <span className={styles.dropzoneHint}>เลือกได้หลายรูปพร้อมกัน</span>
+              <span className={styles.dropzoneHint}>อัปโหลดครั้งเดียว ที่เหลือทำงานเบื้องหลัง</span>
             </button>
-          ) : null}
-
-          {phase === 'processing' ? (
-            <div className={styles.progressWrap}>
-              <span className={styles.progressText}>
-                กำลังอ่านสลิป {progress.done}/{progress.total}
-              </span>
-              <div className={styles.progressBar}>
-                <div
-                  className={styles.progressFill}
-                  style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }}
-                />
-              </div>
+            {error ? <p className={styles.error}>{error}</p> : null}
+          </>
+        ) : (
+          <div className={styles.progressWrap}>
+            <span className={styles.progressText}>
+              {phase === 'saving' ? 'กำลังส่งเข้าคิว…' : `กำลังเตรียมไฟล์ ${progress.done}/${progress.total}`}
+            </span>
+            <div className={styles.progressBar}>
+              <div
+                className={styles.progressFill}
+                style={{
+                  width: `${
+                    phase === 'saving' ? 100 : progress.total ? (progress.done / progress.total) * 100 : 0
+                  }%`,
+                }}
+              />
             </div>
-          ) : null}
-
-          {phase === 'summary' ? (
-            <>
-              <div className={styles.summaryStats}>
-                <span>
-                  นำเข้า {included.length}/{items.length} รายการ
-                  {items.some((item) => item.duplicate)
-                    ? ` · ซ้ำ ${items.filter((item) => item.duplicate).length}`
-                    : ''}
-                </span>
-                <span className={styles.summaryTotal}>รวม {formatAmount(batchTotal)}฿</span>
-              </div>
-
-              <div className={styles.tableWrap}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr>
-                      <th className={styles.colCheck}>นำเข้า</th>
-                      <th>รูป</th>
-                      <th>ชื่อรายการ</th>
-                      <th>วันที่</th>
-                      <th className={styles.colAmount}>จำนวนเงิน</th>
-                      <th>ที่มา</th>
-                      <th>หมวดหมู่</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((item) => (
-                      <tr key={item.key} className={item.include && !item.duplicate ? undefined : styles.rowSkipped}>
-                        <td className={styles.colCheck}>
-                          <input
-                            type="checkbox"
-                            checked={item.include}
-                            disabled={item.duplicate || Number(item.amount) <= 0}
-                            onChange={(e) => updateItem(item.key, { include: e.target.checked })}
-                            aria-label="นำเข้ารายการนี้"
-                          />
-                        </td>
-                        <td>
-                          {item.thumb ? <img className={styles.thumb} src={item.thumb} alt="" /> : null}
-                        </td>
-                        <td>
-                          <input
-                            className={styles.cellInput}
-                            value={item.title}
-                            onChange={(e) => updateItem(item.key, { title: e.target.value })}
-                            placeholder="ชื่อรายการ"
-                          />
-                        </td>
-                        <td className={styles.cellDate}>
-                          {item.dateTime ? formatThaiDate(item.dateTime) : '—'}
-                        </td>
-                        <td className={styles.colAmount}>
-                          <input
-                            className={styles.cellAmount}
-                            value={item.amount}
-                            inputMode="decimal"
-                            placeholder="0"
-                            onChange={(e) =>
-                              updateItem(item.key, {
-                                amount: e.target.value.replace(/[^0-9.]/g, ''),
-                                include: true,
-                              })
-                            }
-                          />
-                        </td>
-                        <td>
-                          <span
-                            className={
-                              item.duplicate || item.via === 'none' ? styles.statusErr : styles.statusOk
-                            }
-                          >
-                            {item.duplicate ? 'ซ้ำ · ข้าม' : VIA_LABEL[item.via]}
-                          </span>
-                        </td>
-                        <td>
-                          <select
-                            className={styles.cellSelect}
-                            value={item.categoryId ?? ''}
-                            onChange={(e) => updateItem(item.key, { categoryId: e.target.value || null })}
-                            aria-label={`หมวดหมู่ของ ${item.title}`}
-                          >
-                            <option value="">ไม่ระบุ</option>
-                            {categories.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td>
-                          <button
-                            type="button"
-                            className={styles.removeBtn}
-                            onClick={() => removeItem(item.key)}
-                            aria-label="ลบรายการนี้ออก"
-                          >
-                            <X size={16} strokeWidth={2} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {error ? <p className={styles.error}>{error}</p> : null}
-
-              <div className={styles.summaryActions}>
-                <button type="button" className={ui.small} onClick={openPicker} disabled={busy}>
-                  เลือกไฟล์อีกครั้ง
-                </button>
-                <button
-                  type="button"
-                  className={ui.primary}
-                  onClick={submitBatch}
-                  disabled={busy || included.length === 0}
-                >
-                  {busy ? 'กำลังนำเข้า…' : `นำเข้า ${included.length} รายการ`}
-                </button>
-              </div>
-            </>
-          ) : null}
-        </>
+          </div>
+        )
       ) : (
         <>
           <div className={styles.amountRow}>

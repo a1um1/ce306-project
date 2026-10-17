@@ -1,4 +1,5 @@
 import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
+import { ImportBanner } from '@/components/expense/ImportBanner'
 import { getSession } from '@/lib/api/session'
 
 export const Route = createFileRoute('/_protected')({
@@ -11,5 +12,10 @@ export const Route = createFileRoute('/_protected')({
 })
 
 function ProtectedLayout() {
-  return <Outlet />
+  return (
+    <>
+      <Outlet />
+      <ImportBanner />
+    </>
+  )
 }

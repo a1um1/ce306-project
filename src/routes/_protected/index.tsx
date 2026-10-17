@@ -1,7 +1,8 @@
 import { createFileRoute, getRouteApi, Link, useRouter } from "@tanstack/react-router";
 import { Pen } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AddExpenseDialog } from "@/components/expense/AddExpenseDialog";
+import { IMPORTED_EVENT } from "@/components/expense/ImportBanner";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { CategoryDialog } from "@/components/category/CategoryDialog";
 import { Summarize } from "@/components/summary/Summarize";
@@ -72,6 +73,17 @@ function Dashboard() {
     refresh();
   };
 
+  // The background import finishes after the dialog is gone; widen the window
+  // (imported slips carry their own past date) and refetch.
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const earliest = (event as CustomEvent<{ earliestAt: string | null }>).detail?.earliestAt ?? undefined;
+      onImported(earliest);
+    };
+    window.addEventListener(IMPORTED_EVENT, handler);
+    return () => window.removeEventListener(IMPORTED_EVENT, handler);
+  });
+
   return (
     <div className={page.page}>
       <AppHeader user={user} categories={categories} onChanged={refresh} />
@@ -115,6 +127,7 @@ function Dashboard() {
               from: toDateKey(new Date(bounds.from)),
               to: toDateKey(new Date(bounds.to)),
               categoryId: "",
+              sort: "date-desc",
             }}
             className={page.viewAllButton}
           >

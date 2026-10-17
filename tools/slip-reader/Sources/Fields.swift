@@ -37,7 +37,10 @@ func parse(file: String, obs: [Obs]) -> [String: Any] {
         }.max { $0.box.midY < $1.box.midY }
         txn = cand?.text ?? ""
     }
-    if txn.isEmpty { txn = (file as NSString).deletingPathExtension }
+    // No filename fallback: a missing reference means the slip was not read
+    // well enough to file safely, so the caller rejects it instead of inventing
+    // an id from the file name.
+
 
     // amount & fee: lines with "N.NN" + บาท; larger y is amount, smaller is fee
     let moneyLines = inImg.filter { $0.text.contains("บาท") && money($0.text) != nil }

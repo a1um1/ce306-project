@@ -1,6 +1,7 @@
 import { CategoryIcon } from '@/components/category/CategoryIcon'
 import { RangeChart } from './RangeChart'
 import { RangePicker } from './RangePicker'
+import { RollingNumber } from './RollingNumber'
 import { formatAmount, type RangeKey } from '@/lib/utils/format'
 import type { BreakdownSlice, SummaryRow } from '@/lib/utils/summary'
 import styles from './Summarize.module.css'
@@ -20,7 +21,8 @@ export function Summarize({ total, rows, slices, bounds, range, year, onRangeCha
   return (
     <section className={styles.card}>
       <div className={styles.chartWrap}>
-        <RangeChart range={range} bounds={bounds} rows={rows} slices={slices} />
+        {/* Remount on range/year change so the mount animations replay. */}
+        <RangeChart key={`${range}-${year}`} range={range} bounds={bounds} rows={rows} slices={slices} />
       </div>
 
       <div className={styles.right}>
@@ -28,10 +30,12 @@ export function Summarize({ total, rows, slices, bounds, range, year, onRangeCha
           <p className={styles.usageLabel}>ยอดใช้จ่าย</p>
           <RangePicker value={range} year={year} onChange={onRangeChange} onYearChange={onYearChange} />
         </div>
-        <p className={styles.usageTotal}>{formatAmount(total)}฿</p>
+        <p className={styles.usageTotal}>
+          <RollingNumber value={total} suffix="฿" />
+        </p>
 
         {slices.length > 0 ? (
-          <ul className={styles.breakdown}>
+          <ul key={`${range}-${year}`} className={styles.breakdown}>
             {slices.map((slice) => (
               <li key={slice.key} className={styles.breakdownItem}>
                 <CategoryIcon icon={slice.icon ?? 'other'} color={slice.color ?? '#d9d9d9'} size={32} />

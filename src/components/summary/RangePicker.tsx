@@ -13,7 +13,7 @@ export function RangePicker({
   onChange,
   onYearChange,
 }: {
-  value: RangeKey
+  value: RangeKey | null
   year: number
   onChange: (key: RangeKey) => void
   onYearChange: (year: number) => void

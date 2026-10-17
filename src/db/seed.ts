@@ -6,7 +6,8 @@ import { merchantCore } from '../lib/utils/categorize.ts'
 import { category, merchantRule } from './schema.ts'
 
 // Built-in categories: user_id IS NULL, shared by everyone, not editable.
-// Keep in sync with CATEGORY_ICONS in lib/utils/design.ts.
+// Keep in sync with CATEGORY_ICONS in lib/utils/design.ts. Order here is the
+// display order (created_at is derived from the index).
 const CATEGORIES = [
   { id: 'builtin-food', name: 'อาหาร', icon: 'food', color: '#FF8D7F' },
   { id: 'builtin-transport', name: 'เดินทาง', icon: 'transport', color: '#D995FF' },
@@ -23,6 +24,18 @@ const CATEGORIES = [
   { id: 'builtin-donation', name: 'ทำบุญ', icon: 'donation', color: '#00D89E' },
   { id: 'builtin-pet', name: 'สัตว์เลี้ยง', icon: 'pet', color: '#00CCFF' },
   { id: 'builtin-travel', name: 'ท่องเที่ยว', icon: 'travel', color: '#F6A300' },
+  { id: 'builtin-insurance', name: 'ประกัน', icon: 'insurance', color: '#7FC4FF' },
+  { id: 'builtin-investment', name: 'ลงทุน/ออม', icon: 'investment', color: '#B0E57C' },
+  { id: 'builtin-fees', name: 'ค่าธรรมเนียม', icon: 'fees', color: '#FFD166' },
+  { id: 'builtin-services', name: 'บริการ', icon: 'services', color: '#C9B6FF' },
+  { id: 'builtin-tax', name: 'ภาษี', icon: 'tax', color: '#FF8D7F' },
+  { id: 'builtin-household', name: 'ของใช้ในบ้าน', icon: 'household', color: '#D995FF' },
+  { id: 'builtin-delivery', name: 'ค่าส่ง/พัสดุ', icon: 'delivery', color: '#00D89E' },
+  { id: 'builtin-laundry', name: 'ซักผ้า', icon: 'laundry', color: '#00CCFF' },
+  { id: 'builtin-beauty', name: 'ความงาม', icon: 'beauty', color: '#FF9FF3' },
+  { id: 'builtin-sports', name: 'กีฬา', icon: 'sports', color: '#F6A300' },
+  { id: 'builtin-loan', name: 'เงินกู้/ผ่อน', icon: 'loan', color: '#7FC4FF' },
+  { id: 'builtin-drinks', name: 'เครื่องดื่ม', icon: 'drinks', color: '#B0E57C' },
   { id: 'builtin-other', name: 'อื่น ๆ', icon: 'other', color: '#C9B6FF' },
 ]
 
@@ -62,13 +75,15 @@ export async function seed() {
   const at = new Date('2026-01-01T00:00:00Z')
 
   try {
-    for (const c of CATEGORIES) {
+    for (const [index, c] of CATEGORIES.entries()) {
+      // Distinct created_at per index keeps the listing order stable.
+      const createdAt = new Date(at.getTime() + index * 1000)
       await db
         .insert(category)
-        .values({ ...c, userId: null, createdAt: at, updatedAt: at })
+        .values({ ...c, userId: null, createdAt, updatedAt: createdAt })
         .onConflictDoUpdate({
           target: category.id,
-          set: { name: c.name, icon: c.icon, color: c.color, updatedAt: at },
+          set: { name: c.name, icon: c.icon, color: c.color, createdAt, updatedAt: createdAt },
         })
     }
 

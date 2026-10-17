@@ -21,14 +21,18 @@ func recognize(_ cg: CGImage) throws -> [Obs] {
     }
 }
 
-// Single-pass decode + downscale. maxEdge caps the long side: 0.6x of a typical
-// slip is the accuracy cliff we measured; keep >= 760.
-func loadCGImage(_ path: String, maxEdge: Int = 760) -> CGImage? {
+// Single-pass decode + downscale. maxEdge caps the long side. 768 is the
+// accuracy floor we measured; 1280 keeps headroom for soft phone photos at no
+// output cost on sharp slips. SLIP_MAX_EDGE overrides it (re-measure the cliff).
+func loadCGImage(_ path: String, maxEdge: Int = 0) -> CGImage? {
+    let edge = maxEdge > 0
+        ? maxEdge
+        : (ProcessInfo.processInfo.environment["SLIP_MAX_EDGE"].flatMap(Int.init) ?? 1280)
     guard let src = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil) else { return nil }
     let opts: [CFString: Any] = [
         kCGImageSourceCreateThumbnailFromImageAlways: true,
         kCGImageSourceCreateThumbnailWithTransform: true,
-        kCGImageSourceThumbnailMaxPixelSize: maxEdge,
+        kCGImageSourceThumbnailMaxPixelSize: edge,
     ]
     return CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary)
 }

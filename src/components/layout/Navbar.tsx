@@ -1,30 +1,43 @@
-import { Menu } from '@base-ui/react/menu'
-import { ChevronDown } from 'lucide-react'
-import { useNavigate } from '@tanstack/react-router'
-import { authClient } from '@/lib/auth-client'
-import styles from './Navbar.module.css'
+import { Menu } from "@base-ui/react/menu";
+import { ChevronDown } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { authClient } from "@/lib/auth-client";
+import styles from "./Navbar.module.css";
 
 type Props = {
-  user: { name: string; email: string; image?: string | null }
-  onManageCategories: () => void
-}
+  user: { name: string; email: string; image?: string | null };
+  onManageCategories: () => void;
+};
 
 export function Navbar({ user, onManageCategories }: Props) {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   const signOut = async () => {
-    await authClient.signOut()
-    await navigate({ to: '/signin' })
-  }
+    await authClient.signOut();
+    await navigate({ to: "/signin" });
+  };
 
   return (
     <header className={styles.navbar}>
-      <div className={styles.logoLong}>
+      <Link
+        to="/"
+        search={{
+          range: "today",
+          year: new Date().getFullYear(),
+        }}
+        className={styles.logoLong}
+      >
         <span className={styles.logoMark}>
-          <img src="/assets/logo-slip.svg" alt="" width={34} height={34} className={styles.logoImg} />
+          <img
+            src="/assets/logo-slip.svg"
+            alt=""
+            width={34}
+            height={34}
+            className={styles.logoImg}
+          />
         </span>
         <span className={styles.logoText}>PayTail</span>
-      </div>
+      </Link>
 
       <Menu.Root>
         <Menu.Trigger className={styles.user}>
@@ -47,5 +60,5 @@ export function Navbar({ user, onManageCategories }: Props) {
         </Menu.Portal>
       </Menu.Root>
     </header>
-  )
+  );
 }

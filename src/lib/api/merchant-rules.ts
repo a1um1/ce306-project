@@ -1,6 +1,6 @@
-import { eq, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { db } from '@/db'
-import { merchantRule } from '@/db/schema'
+import { expense, merchantRule } from '@/db/schema'
 import { merchantCore, type MerchantRule } from '@/lib/utils/categorize'
 
 // Seed rules (user_id IS NULL) first, the user's own rules last, so the user's
@@ -32,4 +32,32 @@ export async function rememberMerchant(
       target: [merchantRule.userId, merchantRule.key],
       set: { categoryId, updatedAt: new Date() },
     })
+}
+
+// Re-file every other transaction of the same merchant under this category, so
+// one correction fixes the whole history. `exceptId` skips the row the user
+// just saved. `merchantCore` runs in JS because Postgres cannot call it.
+export async function applyMerchantCategory(
+  userId: string,
+  title: string,
+  categoryId: string | null | undefined,
+  exceptId?: string,
+): Promise<number> {
+  if (!categoryId) return 0
+  const key = merchantCore(title)
+  if (!key) return 0
+
+  const rows = await db
+    .select({ id: expense.id, title: expense.title })
+    .from(expense)
+    .where(and(eq(expense.userId, userId), ne(expense.id, exceptId ?? '')))
+
+  const ids = rows.filter((row) => merchantCore(row.title) === key).map((row) => row.id)
+  if (ids.length === 0) return 0
+
+  await db
+    .update(expense)
+    .set({ categoryId, updatedAt: new Date() })
+    .where(inArray(expense.id, ids))
+  return ids.length
 }

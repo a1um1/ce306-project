@@ -8,3 +8,4 @@ tools/slip-reader/bin
 tools/slip-reader/data
 tools/slip-reader/highlight
 .DS_Store
+.data

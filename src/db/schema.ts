@@ -1,4 +1,4 @@
-import { boolean, numeric, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import { boolean, integer, numeric, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 // Core Better Auth schema. Keep in sync with `auth.api` expectations.
 export const user = pgTable('user', {
@@ -99,3 +99,25 @@ export const expense = pgTable(
   },
   (table) => [uniqueIndex('expense_user_external_idx').on(table.userId, table.externalId)],
 )
+
+// A slip-batch import runs in the background so the user can close the dialog
+// (or the tab). Rows persist progress; `import-worker.server.ts` drives them and
+// resumes a job left running if the server restarts. The uploaded images live
+// in .data/imports/<id>/ until the job finishes.
+export const importJob = pgTable('import_job', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  status: text('status').notNull().default('pending'), // pending | processing | done | failed
+  total: integer('total').notNull(),
+  processed: integer('processed').notNull().default(0),
+  imported: integer('imported').notNull().default(0),
+  skipped: integer('skipped').notNull().default(0),
+  failed: integer('failed').notNull().default(0),
+  earliestAt: timestamp('earliest_at', { withTimezone: true }),
+  error: text('error'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+})

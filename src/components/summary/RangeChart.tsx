@@ -1,3 +1,4 @@
+import { useRef, useState, type MouseEvent } from 'react'
 import { THAI_MONTHS, formatAmount, toDateKey, type RangeKey } from '@/lib/utils/format'
 import {
   calendarDays,
@@ -16,7 +17,10 @@ const WEEKDAYS = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
 const SIZE = 200
 const THICKNESS = 34
 
-function Donut({ slices }: { slices: BreakdownSlice[] }) {
+type ShowFn = (event: MouseEvent, title: string, value: string) => void
+type Hover = { x: number; y: number; title: string; value: string }
+
+function Donut({ slices, show }: { slices: BreakdownSlice[]; show: ShowFn }) {
   const center = SIZE / 2
   const radius = (SIZE - THICKNESS) / 2
   const circumference = 2 * Math.PI * radius
@@ -27,9 +31,11 @@ function Donut({ slices }: { slices: BreakdownSlice[] }) {
     .filter((s) => s.value > 0)
     .map((s) => {
       const length = (s.value / total) * circumference
+      const value = `${formatAmount(s.value)}฿ · ${((s.value / total) * 100).toFixed(0)}%`
       const arc = (
         <circle
           key={s.key}
+          className={styles.arc}
           cx={center}
           cy={center}
           r={radius}
@@ -38,6 +44,8 @@ function Donut({ slices }: { slices: BreakdownSlice[] }) {
           strokeWidth={THICKNESS}
           strokeDasharray={`${length} ${circumference - length}`}
           strokeDashoffset={-offset}
+          onMouseEnter={(e) => show(e, s.name, value)}
+          onMouseMove={(e) => show(e, s.name, value)}
         />
       )
       offset += length
@@ -63,12 +71,27 @@ function Donut({ slices }: { slices: BreakdownSlice[] }) {
   )
 }
 
-function Bars({ buckets, label, dense = false }: { buckets: Bucket[]; label: string; dense?: boolean }) {
+function Bars({
+  buckets,
+  label,
+  dense = false,
+  show,
+}: {
+  buckets: Bucket[]
+  label: string
+  dense?: boolean
+  show: ShowFn
+}) {
   const max = Math.max(...buckets.map((b) => b.value), 1)
   return (
     <div className={dense ? `${styles.bars} ${styles.barsDense}` : styles.bars} role="img" aria-label={label}>
       {buckets.map((bucket, i) => (
-        <div key={i} className={styles.barCol} title={`${bucket.label} ${formatAmount(bucket.value)}฿`}>
+        <div
+          key={i}
+          className={styles.barCol}
+          onMouseEnter={(e) => show(e, bucket.label, `${formatAmount(bucket.value)}฿`)}
+          onMouseMove={(e) => show(e, bucket.label, `${formatAmount(bucket.value)}฿`)}
+        >
           <div className={styles.barSlot}>
             <div className={styles.bar} style={{ height: `${(bucket.value / max) * 100}%` }} />
           </div>
@@ -86,10 +109,12 @@ function Calendar({
   days,
   totals,
   label,
+  show,
 }: {
   days: Date[]
   totals: Map<string, number>
   label: string
+  show: ShowFn
 }) {
   const values = days.map((day) => totals.get(toDateKey(day)) ?? 0)
   const max = Math.max(...values, 1)
@@ -97,14 +122,19 @@ function Calendar({
     <div className={styles.calendar}>
       <span className={styles.calendarLabel}>{label}</span>
       <div className={styles.calendarGrid} role="img" aria-label={label}>
-        {days.map((day, i) => (
-          <span
-            key={i}
-            className={styles.dot}
-            style={{ opacity: values[i] === 0 ? 0.15 : 0.35 + 0.65 * (values[i] / max) }}
-            title={`${day.getDate()} ${THAI_MONTHS[day.getMonth()]} · ${formatAmount(values[i])}฿`}
-          />
-        ))}
+        {days.map((day, i) => {
+          const title = `${day.getDate()} ${THAI_MONTHS[day.getMonth()]}`
+          const value = `${formatAmount(values[i])}฿`
+          return (
+            <span
+              key={i}
+              className={styles.dot}
+              style={{ opacity: values[i] === 0 ? 0.15 : 0.35 + 0.65 * (values[i] / max) }}
+              onMouseEnter={(e) => show(e, title, value)}
+              onMouseMove={(e) => show(e, title, value)}
+            />
+          )
+        })}
       </div>
     </div>
   )
@@ -121,49 +151,72 @@ type Props = {
 // week, a calendar heat map for the month, per-month bars for half a year.
 export function RangeChart({ range, bounds, rows, slices }: Props) {
   const anchor = new Date(bounds.from)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const [hover, setHover] = useState<Hover | null>(null)
 
-  if (range === 'today') return <Donut slices={slices} />
+  // Chart-local coords, so the tooltip follows the pointer inside the wrap.
+  const show: ShowFn = (event, title, value) => {
+    const rect = wrapRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setHover({ x: event.clientX - rect.left, y: event.clientY - rect.top, title, value })
+  }
 
-  if (range === 'week') {
+  let chart
+  if (range === 'today') {
+    chart = <Donut slices={slices} show={show} />
+  } else if (range === 'week') {
     const totals = dailyTotals(rows)
-    return (
+    chart = (
       <Bars
         label="รายจ่ายรายวันในสัปดาห์นี้"
+        show={show}
         buckets={weekDays(anchor).map((day) => ({
           label: WEEKDAYS[day.getDay()],
           value: totals.get(toDateKey(day)) ?? 0,
         }))}
       />
     )
-  }
-
-  if (range === 'month') {
-    return (
+  } else if (range === 'month') {
+    chart = (
       <Calendar
         days={calendarDays(anchor.getFullYear(), anchor.getMonth())}
         totals={dailyTotals(rows)}
         label={`${THAI_MONTHS[anchor.getMonth()]} ${anchor.getFullYear() + 543}`}
+        show={show}
+      />
+    )
+  } else {
+    // lastMonths ends on the given month, so anchor on the range end: for a full
+    // year that is Dec -> Jan..Dec, for half a year it is the current month.
+    const last = new Date(bounds.to)
+    const months = range === 'year' ? 12 : 6
+    const totals = monthlyTotals(rows)
+    chart = (
+      <Bars
+        label={
+          range === 'year'
+            ? `รายจ่ายรายเดือนปี ${last.getFullYear() + 543}`
+            : 'รายจ่ายรายเดือนย้อนหลัง 6 เดือน'
+        }
+        dense={range === 'year'}
+        show={show}
+        buckets={lastMonths(last, months).map((month) => ({
+          label: THAI_MONTHS[month.getMonth()],
+          value: totals.get(monthKey(month)) ?? 0,
+        }))}
       />
     )
   }
 
-  // lastMonths ends on the given month, so anchor on the range end: for a full
-  // year that is Dec -> Jan..Dec, for half a year it is the current month.
-  const last = new Date(bounds.to)
-  const months = range === 'year' ? 12 : 6
-  const totals = monthlyTotals(rows)
   return (
-    <Bars
-      label={
-        range === 'year'
-          ? `รายจ่ายรายเดือนปี ${last.getFullYear() + 543}`
-          : 'รายจ่ายรายเดือนย้อนหลัง 6 เดือน'
-      }
-      dense={range === 'year'}
-      buckets={lastMonths(last, months).map((month) => ({
-        label: THAI_MONTHS[month.getMonth()],
-        value: totals.get(monthKey(month)) ?? 0,
-      }))}
-    />
+    <div ref={wrapRef} className={styles.chart} onMouseLeave={() => setHover(null)}>
+      {chart}
+      {hover ? (
+        <div className={styles.tooltip} style={{ left: hover.x, top: hover.y }} role="tooltip">
+          <span className={styles.tooltipTitle}>{hover.title}</span>
+          <span className={styles.tooltipValue}>{hover.value}</span>
+        </div>
+      ) : null}
+    </div>
   )
 }

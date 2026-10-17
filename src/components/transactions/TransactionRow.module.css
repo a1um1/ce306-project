@@ -20,6 +20,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
 }
@@ -27,9 +28,14 @@
 .title {
   font-size: 20px;
   font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .payee {
+  flex: none;
   font-size: 16px;
   font-weight: 400;
 }
