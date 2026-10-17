@@ -1,3 +1,4 @@
+import { Pen, Trash2 } from 'lucide-react'
 import { CategoryIcon } from '@/components/category/CategoryIcon'
 import { formatAmount, formatThaiDate } from '@/lib/utils/format'
 import styles from './TransactionRow.module.css'
@@ -13,7 +14,14 @@ export type TransactionItem = {
   categoryColor: string | null
 }
 
-export function TransactionRow({ item }: { item: TransactionItem }) {
+type Props = {
+  item: TransactionItem
+  disabled?: boolean
+  onEdit?: () => void
+  onDelete?: () => void
+}
+
+export function TransactionRow({ item, disabled, onEdit, onDelete }: Props) {
   return (
     <div className={styles.row}>
       <CategoryIcon icon={item.categoryIcon ?? 'other'} color={item.categoryColor ?? '#d9d9d9'} />
@@ -31,6 +39,32 @@ export function TransactionRow({ item }: { item: TransactionItem }) {
         {formatAmount(item.amount)}
         <span className={styles.currency}>฿</span>
       </div>
+      {onEdit || onDelete ? (
+        <div className={styles.actions}>
+          {onEdit ? (
+            <button
+              type="button"
+              className={styles.iconButton}
+              onClick={onEdit}
+              disabled={disabled}
+              aria-label={`แก้ไข ${item.title}`}
+            >
+              <Pen size={18} strokeWidth={2} />
+            </button>
+          ) : null}
+          {onDelete ? (
+            <button
+              type="button"
+              className={styles.iconButton}
+              onClick={onDelete}
+              disabled={disabled}
+              aria-label={`ลบ ${item.title}`}
+            >
+              <Trash2 size={18} strokeWidth={2} />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }

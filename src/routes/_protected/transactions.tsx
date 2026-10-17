@@ -1,7 +1,7 @@
 import { createFileRoute, getRouteApi } from '@tanstack/react-router'
 import { useState } from 'react'
 import { AppHeader } from '@/components/layout/AppHeader'
-import { TransactionRow } from '@/components/transactions/TransactionRow'
+import { TransactionList } from '@/components/transactions/TransactionList'
 import page from '@/components/layout/page.module.css'
 import { listCategories } from '@/lib/api/categories'
 import { csvField, dayEndIso, dayStartIso, formatAmount, formatThaiDate, toDateKey } from '@/lib/utils/format'
@@ -109,13 +109,13 @@ function Transactions() {
           </button>
         </div>
 
-        <div className={page.list}>
-          {rows.length === 0 ? (
-            <div className={page.empty}>{loading ? 'กำลังโหลด…' : 'ไม่พบรายจ่ายในช่วงที่เลือก'}</div>
-          ) : (
-            rows.map((row) => <TransactionRow key={row.id} item={row} />)
-          )}
-        </div>
+        <TransactionList
+          rows={rows}
+          loading={loading}
+          categories={categories}
+          empty="ไม่พบรายจ่ายในช่วงที่เลือก"
+          onChanged={() => setReload((n) => n + 1)}
+        />
       </div>
     </div>
   )

@@ -226,6 +226,20 @@
   border-color: var(--primary);
 }
 
+.cellSelect {
+  max-width: 120px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 6px 8px;
+  font-size: 13px;
+  background: var(--surface);
+}
+
+.cellSelect:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
 .statusOk {
   font-size: 12px;
   color: var(--kbank);

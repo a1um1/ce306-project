@@ -1,7 +1,8 @@
 import { createServerFn } from '@tanstack/react-start'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, isNotNull } from 'drizzle-orm'
 import { db } from '@/db'
-import { category } from '@/db/schema'
+import { category, expense } from '@/db/schema'
+import { suggestCategoryId, type CategoryHistory } from '@/lib/utils/categorize'
 import { CATEGORY_COLORS } from '@/lib/utils/palette'
 import { requireUser } from './session'
 
@@ -43,6 +44,35 @@ export const listCategories = createServerFn({ method: 'GET' }).handler(async ()
   if (rows.length > 0) return rows
   return seedStarterCategories(user.id)
 })
+
+// Auto-categoriser: with no model involved it leans on the user's own past
+// choices first, then on category names appearing in the slip text.
+export const suggestCategories = createServerFn({ method: 'POST' })
+  .validator((data: { texts: string[] }) => data)
+  .handler(async ({ data }) => {
+    const user = await requireUser()
+    const [options, rows] = await Promise.all([
+      db
+        .select({ id: category.id, name: category.name })
+        .from(category)
+        .where(eq(category.userId, user.id)),
+      db
+        .select({ title: expense.title, payee: expense.payee, categoryId: expense.categoryId })
+        .from(expense)
+        .where(and(eq(expense.userId, user.id), isNotNull(expense.categoryId)))
+        .orderBy(desc(expense.occurredAt))
+        .limit(500),
+    ])
+
+    const history: CategoryHistory[] = []
+    for (const row of rows) {
+      if (!row.categoryId) continue
+      if (row.title) history.push({ text: row.title, categoryId: row.categoryId })
+      if (row.payee) history.push({ text: row.payee, categoryId: row.categoryId })
+    }
+
+    return data.texts.map((text) => suggestCategoryId(text, options, history))
+  })
 
 export const createCategory = createServerFn({ method: 'POST' })
   .validator((data: CategoryInput) => data)

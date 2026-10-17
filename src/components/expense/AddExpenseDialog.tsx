@@ -1,10 +1,10 @@
 import { Lock, Pen, QrCode, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { CategoryIcon } from '@/components/category/CategoryIcon'
+import { CategoryGrid } from '@/components/category/CategoryGrid'
 import type { CategoryRecord } from '@/components/category/CategoryDialog'
 import { Modal } from '@/components/ui/Modal'
 import { createExpense, importExpenses, listImportedExternalIds } from '@/lib/api/expenses'
-import { CATEGORY_COLORS } from '@/lib/utils/design'
+import { suggestCategories } from '@/lib/api/categories'
 import { formatAmount, formatThaiDate } from '@/lib/utils/format'
 import { readSlipFiles } from '@/lib/utils/read-slip'
 import ui from '@/components/ui/ui.module.css'
@@ -27,6 +27,8 @@ type BatchItem = {
   payload: string | null
   externalId: string | null
   via: 'ocr' | 'qr' | 'none'
+  /** Auto-suggested, then editable per row. */
+  categoryId: string | null
   include: boolean
   duplicate: boolean
 }
@@ -51,7 +53,6 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
   const [phase, setPhase] = useState<'pick' | 'processing' | 'summary'>('pick')
   const [progress, setProgress] = useState({ done: 0, total: 0 })
   const [items, setItems] = useState<BatchItem[]>([])
-  const [batchCategoryId, setBatchCategoryId] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
 
   const [busy, setBusy] = useState(false)
@@ -61,7 +62,6 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
   // New transactions start on the first category instead of none.
   const defaultCategoryId = categories[0]?.id ?? null
   const manualCategory = categoryId ?? defaultCategoryId
-  const batchCategory = batchCategoryId ?? defaultCategoryId
 
   useEffect(() => {
     if (!open) return
@@ -71,7 +71,6 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
     setTitle('')
     setPayee('')
     setCategoryId(null)
-    setBatchCategoryId(null)
     setItems([])
     setPhase('pick')
     setProgress({ done: 0, total: 0 })
@@ -101,15 +100,17 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
 
     const readings = await readSlipFiles(images, (done, total) => setProgress({ done, total }))
 
-    let known: string[] = []
-    try {
-      known = await listImportedExternalIds()
-    } catch {
-      known = []
-    }
+    // Duplicate guard and category guess are independent lookups.
+    const [known, suggested] = await Promise.all([
+      listImportedExternalIds().catch(() => [] as string[]),
+      suggestCategories({ data: { texts: readings.map((reading) => reading.title) } }).catch(() =>
+        readings.map(() => null),
+      ),
+    ])
+
     // Anything already stored, plus repeats inside this batch, is a duplicate.
     const seen = new Set(known)
-    const parsed = readings.map((reading): BatchItem => {
+    const parsed = readings.map((reading, index): BatchItem => {
       const duplicate = Boolean(reading.externalId && seen.has(reading.externalId))
       if (reading.externalId) seen.add(reading.externalId)
       return {
@@ -121,6 +122,7 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
         payload: reading.payload,
         externalId: reading.externalId,
         via: reading.via,
+        categoryId: suggested[index] ?? defaultCategoryId,
         include: Number(reading.amount) > 0 && !duplicate,
         duplicate,
       }
@@ -192,7 +194,7 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
             payee: null,
             amount: Number(item.amount),
             occurredAt: item.dateTime ?? new Date().toISOString(),
-            categoryId: batchCategory,
+            categoryId: item.categoryId ?? defaultCategoryId,
             source: 'qr' as const,
             qrPayload: item.payload,
             externalId: item.externalId,
@@ -219,33 +221,6 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
           ? 'ตรวจสอบก่อนนำเข้า'
           : 'อัปโหลด QR สลิป'
         : 'กรอกข้อมูลรายจ่าย'
-
-  const categoryGrid = (selected: string | null, onSelect: (id: string) => void) => (
-    <div className={styles.categoryBlock}>
-      <div className={styles.categoryHeader}>
-        <span className={ui.label}>เลือกหมวดหมู่</span>
-        <button type="button" className={ui.small} onClick={onNewCategory}>
-          สร้างใหม่
-        </button>
-      </div>
-      <div className={styles.categoryGrid}>
-        {categories.map((c, i) => (
-          <button
-            key={c.id}
-            type="button"
-            className={selected === c.id ? styles.catActive : styles.cat}
-            onClick={() => onSelect(c.id)}
-          >
-            <CategoryIcon icon={c.icon} color={c.color ?? CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
-            <span>{c.name}</span>
-          </button>
-        ))}
-        {categories.length === 0 ? (
-          <span className={styles.emptyHint}>ยังไม่มีหมวดหมู่ กด “สร้างใหม่”</span>
-        ) : null}
-      </div>
-    </div>
-  )
 
   return (
     <Modal open={open} onOpenChange={onOpenChange} title={modalTitle} width={step === 'choose' ? 560 : 780}>
@@ -323,6 +298,7 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
                       <th>วันที่</th>
                       <th className={styles.colAmount}>จำนวนเงิน</th>
                       <th>ที่มา</th>
+                      <th>หมวดหมู่</th>
                       <th />
                     </tr>
                   </thead>
@@ -376,6 +352,21 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
                           </span>
                         </td>
                         <td>
+                          <select
+                            className={styles.cellSelect}
+                            value={item.categoryId ?? ''}
+                            onChange={(e) => updateItem(item.key, { categoryId: e.target.value || null })}
+                            aria-label={`หมวดหมู่ของ ${item.title}`}
+                          >
+                            <option value="">ไม่ระบุ</option>
+                            {categories.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
                           <button
                             type="button"
                             className={styles.removeBtn}
@@ -390,8 +381,6 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
                   </tbody>
                 </table>
               </div>
-
-              {categoryGrid(batchCategory, setBatchCategoryId)}
 
               {error ? <p className={styles.error}>{error}</p> : null}
 
@@ -461,7 +450,12 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
             />
           </div>
 
-          {categoryGrid(manualCategory, setCategoryId)}
+          <CategoryGrid
+            categories={categories}
+            selected={manualCategory}
+            onSelect={setCategoryId}
+            onNewCategory={onNewCategory}
+          />
 
           {error ? <p className={styles.error}>{error}</p> : null}
 

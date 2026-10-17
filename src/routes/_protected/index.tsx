@@ -5,7 +5,7 @@ import { AddExpenseDialog } from "@/components/expense/AddExpenseDialog";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { CategoryDialog } from "@/components/category/CategoryDialog";
 import { Summarize } from "@/components/summary/Summarize";
-import { TransactionRow } from "@/components/transactions/TransactionRow";
+import { TransactionList } from "@/components/transactions/TransactionList";
 import page from "@/components/layout/page.module.css";
 import { listCategories } from "@/lib/api/categories";
 import {
@@ -80,13 +80,13 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className={page.list}>
-          {rows.length === 0 ? (
-            <div className={page.empty}>{loading ? "กำลังโหลด…" : "ยังไม่มีรายจ่ายในช่วงนี้"}</div>
-          ) : (
-            rows.map((row) => <TransactionRow key={row.id} item={row} />)
-          )}
-        </div>
+        <TransactionList
+          rows={rows}
+          loading={loading}
+          categories={categories}
+          empty="ยังไม่มีรายจ่ายในช่วงนี้"
+          onChanged={refresh}
+        />
       </div>
 
       <AddExpenseDialog

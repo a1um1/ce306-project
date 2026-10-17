@@ -5,7 +5,11 @@ const THAI_MONTHS = [
 
 export function formatAmount(amount: number | string): string {
   const n = typeof amount === 'string' ? Number(amount) : amount
-  return Number.isInteger(n) ? String(n) : n.toFixed(2)
+  if (!Number.isFinite(n)) return '0'
+  return n.toLocaleString('en-US', {
+    minimumFractionDigits: Number.isInteger(n) ? 0 : 2,
+    maximumFractionDigits: 2,
+  })
 }
 
 export function formatThaiDate(iso: string | Date, withTime = true): string {

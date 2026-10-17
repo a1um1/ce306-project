@@ -67,3 +67,31 @@
   font-size: 14px;
   font-weight: 700;
 }
+
+.actions {
+  display: flex;
+  gap: 2px;
+}
+
+.iconButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.iconButton:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--primary);
+}
+
+.iconButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

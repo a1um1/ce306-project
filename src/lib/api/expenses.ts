@@ -105,3 +105,37 @@ export const importExpenses = createServerFn({ method: 'POST' })
       .returning({ id: expense.id })
     return { inserted: rows.length, skipped: data.items.length - rows.length }
   })
+
+export type ExpenseUpdate = {
+  id: string
+  title: string
+  payee?: string | null
+  amount: number
+  categoryId?: string | null
+}
+
+export const updateExpense = createServerFn({ method: 'POST' })
+  .validator((data: ExpenseUpdate) => data)
+  .handler(async ({ data }) => {
+    const user = await requireUser()
+    const [row] = await db
+      .update(expense)
+      .set({
+        title: data.title,
+        payee: data.payee ?? null,
+        amount: data.amount.toFixed(2),
+        categoryId: data.categoryId ?? null,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(expense.id, data.id), eq(expense.userId, user.id)))
+      .returning()
+    return row ?? null
+  })
+
+export const deleteExpense = createServerFn({ method: 'POST' })
+  .validator((data: { id: string }) => data)
+  .handler(async ({ data }) => {
+    const user = await requireUser()
+    await db.delete(expense).where(and(eq(expense.id, data.id), eq(expense.userId, user.id)))
+    return { ok: true }
+  })
