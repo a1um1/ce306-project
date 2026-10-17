@@ -1,6 +1,6 @@
 import { Pen, Trash2 } from 'lucide-react'
 import { CategoryIcon } from '@/components/category/CategoryIcon'
-import { formatAmount, formatThaiDate } from '@/lib/utils/format'
+import { formatAmount, formatTime } from '@/lib/utils/format'
 import styles from './TransactionRow.module.css'
 
 export type TransactionItem = {
@@ -31,8 +31,13 @@ export function TransactionRow({ item, disabled, onEdit, onDelete }: Props) {
           {item.payee ? <span className={styles.payee}>{item.payee}</span> : null}
         </div>
         <div className={styles.metaLine}>
-          {item.categoryName ? <span className={styles.pill}>{item.categoryName}</span> : null}
-          <span className={styles.date}>{formatThaiDate(item.occurredAt)}</span>
+          <span
+            className={item.categoryName ? styles.pill : styles.pillNone}
+            style={item.categoryName ? { background: item.categoryColor ?? 'var(--muted)' } : undefined}
+          >
+            {item.categoryName ?? 'ไม่ระบุ'}
+          </span>
+          <span className={styles.date}>{formatTime(item.occurredAt)}</span>
         </div>
       </div>
       <div className={styles.amount}>
@@ -49,7 +54,7 @@ export function TransactionRow({ item, disabled, onEdit, onDelete }: Props) {
               disabled={disabled}
               aria-label={`แก้ไข ${item.title}`}
             >
-              <Pen size={18} strokeWidth={2} />
+              <Pen size={20} strokeWidth={2} />
             </button>
           ) : null}
           {onDelete ? (
@@ -60,7 +65,7 @@ export function TransactionRow({ item, disabled, onEdit, onDelete }: Props) {
               disabled={disabled}
               aria-label={`ลบ ${item.title}`}
             >
-              <Trash2 size={18} strokeWidth={2} />
+              <Trash2 size={20} strokeWidth={2} />
             </button>
           ) : null}
         </div>

@@ -53,6 +53,7 @@ function Donut({ slices, show }: { slices: BreakdownSlice[]; show: ShowFn }) {
           style={{ transitionDelay: `${i * 60}ms` }}
           onMouseEnter={(e) => show(e, s.name, value)}
           onMouseMove={(e) => show(e, s.name, value)}
+          onClick={(e) => show(e, s.name, value)}
         />
       )
       offset += length
@@ -82,32 +83,45 @@ function Bars({
   buckets,
   label,
   dense = false,
+  highlight = -1,
   show,
 }: {
   buckets: Bucket[]
   label: string
   dense?: boolean
+  highlight?: number
   show: ShowFn
 }) {
   const max = Math.max(...buckets.map((b) => b.value), 1)
   return (
-    <div className={dense ? `${styles.bars} ${styles.barsDense}` : styles.bars} role="img" aria-label={label}>
-      {buckets.map((bucket, i) => (
-        <div
-          key={i}
-          className={styles.barCol}
-          onMouseEnter={(e) => show(e, bucket.label, `${formatAmount(bucket.value)}฿`)}
-          onMouseMove={(e) => show(e, bucket.label, `${formatAmount(bucket.value)}฿`)}
-        >
-          <div className={styles.barSlot}>
-            <div className={styles.bar} style={{ height: `${(bucket.value / max) * 100}%` }} />
-          </div>
-          {/* Keep an empty label so bars stay aligned; dense shows only the ends. */}
-          <span className={styles.barLabel}>
-            {!dense || i === 0 || i === buckets.length - 1 ? bucket.label : ''}
-          </span>
-        </div>
-      ))}
+    <div className={styles.barsWrap} role="img" aria-label={label}>
+      <span className={styles.barsMax}>สูงสุด {formatAmount(max)}฿</span>
+      <div className={dense ? `${styles.bars} ${styles.barsDense}` : styles.bars}>
+        {buckets.map((bucket, i) => {
+          const title = bucket.label
+          const value = `${formatAmount(bucket.value)}฿`
+          return (
+            <div
+              key={i}
+              className={styles.barCol}
+              onMouseEnter={(e) => show(e, title, value)}
+              onMouseMove={(e) => show(e, title, value)}
+              onClick={(e) => show(e, title, value)}
+            >
+              <div className={styles.barSlot}>
+                <div
+                  className={i === highlight ? `${styles.bar} ${styles.barCurrent}` : styles.bar}
+                  style={{ height: `${(bucket.value / max) * 100}%` }}
+                />
+              </div>
+              {/* Keep an empty label so bars stay aligned; dense shows only the ends. */}
+              <span className={styles.barLabel}>
+                {!dense || i === 0 || i === buckets.length - 1 ? bucket.label : ''}
+              </span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -153,6 +167,7 @@ function Calendar({
               }
               onMouseEnter={(e) => show(e, title, value)}
               onMouseMove={(e) => show(e, title, value)}
+              onClick={(e) => show(e, title, value)}
             />
           )
         })}
@@ -187,11 +202,14 @@ export function RangeChart({ range, bounds, rows, slices }: Props) {
     chart = <Donut slices={slices} show={show} />
   } else if (range === 'week') {
     const totals = dailyTotals(rows)
+    const days = weekDays(anchor)
+    const todayKey = toDateKey(new Date())
     chart = (
       <Bars
         label="รายจ่ายรายวันในสัปดาห์นี้"
         show={show}
-        buckets={weekDays(anchor).map((day) => ({
+        highlight={days.findIndex((day) => toDateKey(day) === todayKey)}
+        buckets={days.map((day) => ({
           label: WEEKDAYS[day.getDay()],
           value: totals.get(toDateKey(day)) ?? 0,
         }))}
@@ -213,6 +231,10 @@ export function RangeChart({ range, bounds, rows, slices }: Props) {
     const last = new Date(bounds.to)
     const months = range === 'year' ? 12 : 6
     const totals = monthlyTotals(rows)
+    const buckets = lastMonths(last, months).map((month) => ({
+      label: THAI_MONTHS[month.getMonth()],
+      value: totals.get(monthKey(month)) ?? 0,
+    }))
     chart = (
       <Bars
         label={
@@ -222,10 +244,8 @@ export function RangeChart({ range, bounds, rows, slices }: Props) {
         }
         dense={range === 'year'}
         show={show}
-        buckets={lastMonths(last, months).map((month) => ({
-          label: THAI_MONTHS[month.getMonth()],
-          value: totals.get(monthKey(month)) ?? 0,
-        }))}
+        highlight={buckets.length - 1}
+        buckets={buckets}
       />
     )
   }

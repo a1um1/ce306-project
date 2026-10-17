@@ -32,7 +32,7 @@ const SORTS: { key: SortKey; label: string }[] = [
 // Order matters: the first match wins when deciding which quick button is active.
 const QUICK: RangeKey[] = ["today", "week", "month", "halfYear"];
 
-export type TxSearch = { from: string; to: string; categoryId: string; sort: SortKey };
+export type TxSearch = { from: string; to: string; categoryId: string; sort: SortKey; q: string };
 
 // Default filter: the current month up to today, no category.
 export const defaultTxSearch = (now = new Date()): TxSearch => ({
@@ -40,6 +40,7 @@ export const defaultTxSearch = (now = new Date()): TxSearch => ({
   to: toDateKey(now),
   categoryId: "",
   sort: "date-desc",
+  q: "",
 });
 
 export const Route = createFileRoute("/_protected/transactions")({
@@ -50,6 +51,7 @@ export const Route = createFileRoute("/_protected/transactions")({
       to: typeof search.to === "string" && search.to ? search.to : def.to,
       categoryId: typeof search.categoryId === "string" ? search.categoryId : "",
       sort: SORTS.some((s) => s.key === search.sort) ? (search.sort as SortKey) : def.sort,
+      q: typeof search.q === "string" ? search.q : "",
     };
   },
   loader: async () => ({ categories: await listCategories() }),
@@ -59,7 +61,7 @@ export const Route = createFileRoute("/_protected/transactions")({
 function Transactions() {
   const { user } = parent.useRouteContext();
   const { categories } = Route.useLoaderData();
-  const { from, to, categoryId, sort } = Route.useSearch();
+  const { from, to, categoryId, sort, q } = Route.useSearch();
   const navigate = Route.useNavigate();
 
   const [reload, setReload] = useState(0);
@@ -69,6 +71,7 @@ function Transactions() {
   const setCategoryId = (value: string) =>
     void navigate({ search: (prev) => ({ ...prev, categoryId: value }) });
   const setSort = (value: SortKey) => void navigate({ search: (prev) => ({ ...prev, sort: value }) });
+  const setQ = (value: string) => void navigate({ search: (prev) => ({ ...prev, q: value }) });
 
   const { rows, loading } = useExpenses(
     { from: dayStartIso(from), to: dayEndIso(to), categoryId: categoryId || undefined },
@@ -76,7 +79,15 @@ function Transactions() {
   );
 
   const sorted = useMemo(() => {
-    const list = [...rows];
+    const needle = q.trim().toLowerCase();
+    const list = needle
+      ? rows.filter(
+          (r) =>
+            r.title.toLowerCase().includes(needle) ||
+            (r.payee ?? "").toLowerCase().includes(needle) ||
+            (r.categoryName ?? "").toLowerCase().includes(needle),
+        )
+      : [...rows];
     switch (sort) {
       case "date-asc":
         return list.sort((a, b) => +new Date(a.occurredAt) - +new Date(b.occurredAt));
@@ -87,9 +98,9 @@ function Transactions() {
       default:
         return list.sort((a, b) => +new Date(b.occurredAt) - +new Date(a.occurredAt));
     }
-  }, [rows, sort]);
+  }, [rows, sort, q]);
 
-  const total = rows.reduce((sum, r) => sum + Number(r.amount), 0);
+  const total = sorted.reduce((sum, r) => sum + Number(r.amount), 0);
 
   // Which quick range (if any) the current from/to equals, so its button lights up.
   const now = new Date();
@@ -173,7 +184,19 @@ function Transactions() {
       <div className={page.container}>
         <div className={page.headerRow}>
           <h2 className={page.listTitle}>ประวัติธรุกรรม</h2>
-          <span className={page.pill}>รวม {formatAmount(total)}฿</span>
+          <div className={page.actions}>
+            <span className={page.totalLabel}>
+              รวม {formatAmount(total)}฿ · {sorted.length} รายการ
+            </span>
+            <button
+              type="button"
+              className={page.exportButton}
+              onClick={exportCsv}
+              disabled={sorted.length === 0}
+            >
+              Export CSV
+            </button>
+          </div>
         </div>
 
         <div className={page.filters}>
@@ -195,6 +218,26 @@ function Transactions() {
               onChange={(e) => setTo(e.target.value)}
             />
           </label>
+          <div className={page.quickRow}>
+            <span className={page.fieldLabel}>ช่วงด่วน</span>
+            <RangePicker
+              value={activeQuick?.key ?? null}
+              year={activeQuick?.year ?? now.getFullYear()}
+              withYear={false}
+              onChange={applyQuick}
+              onYearChange={applyYear}
+            />
+          </div>
+          <label className={page.field}>
+            <span className={page.fieldLabel}>ค้นหา</span>
+            <input
+              className={page.fieldInput}
+              type="search"
+              placeholder="ชื่อ / ผู้รับเงิน"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </label>
           <label className={page.field}>
             <span className={page.fieldLabel}>หมวดหมู่</span>
             <select
@@ -203,6 +246,7 @@ function Transactions() {
               onChange={(e) => setCategoryId(e.target.value)}
             >
               <option value="">ทั้งหมด</option>
+              <option value="__none__">ยังไม่ระบุ</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -224,24 +268,9 @@ function Transactions() {
               ))}
             </select>
           </label>
-          <button
-            type="button"
-            className={page.exportButton}
-            onClick={exportCsv}
-            disabled={rows.length === 0}
-          >
-            Export CSV
+          <button type="button" className={page.resetButton} onClick={resetFilters}>
+            ล้างตัวกรอง
           </button>
-        </div>
-
-        <div className={page.quickFilters}>
-          <span className={page.fieldLabel}>ช่วงเวลาด่วน</span>
-          <RangePicker
-            value={activeQuick?.key ?? null}
-            year={activeQuick?.year ?? now.getFullYear()}
-            onChange={applyQuick}
-            onYearChange={applyYear}
-          />
         </div>
 
         <TransactionList
@@ -250,6 +279,7 @@ function Transactions() {
           categories={categories}
           empty="ไม่พบรายจ่ายในช่วงที่เลือก"
           onChanged={() => setReload((n) => n + 1)}
+          grouped={sort === "date-desc" || sort === "date-asc"}
         />
       </div>
     </div>

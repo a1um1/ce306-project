@@ -128,6 +128,37 @@
   gap: 4px;
 }
 
+/* date separator inside the grouped transaction list */
+.dayHeader {
+  padding: 14px 10px 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* always-reachable add button */
+.fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 2px solid var(--primary);
+  background: var(--primary);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  z-index: 20;
+}
+
+.fab:hover {
+  filter: brightness(1.05);
+}
+
 .fieldLabel {
   font-size: 13px;
   color: var(--muted);

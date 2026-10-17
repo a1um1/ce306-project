@@ -46,12 +46,17 @@
   gap: 8px;
 }
 
-.pill {
-  background: var(--kbank);
+.pill,
+.pillNone {
   color: #fff;
   border-radius: 14px;
   padding: 3px 8px;
   font-size: 13px;
+}
+
+/* Uncategorized rows: a muted chip so the gap is visible, not hidden. */
+.pillNone {
+  background: #b9b2a6;
 }
 
 .date {
@@ -83,10 +88,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;

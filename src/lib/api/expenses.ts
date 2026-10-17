@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { and, desc, eq, gte, isNotNull, lte } from 'drizzle-orm'
+import { and, desc, eq, gte, isNotNull, isNull, lte } from 'drizzle-orm'
 import { db } from '@/db'
 import { category, expense } from '@/db/schema'
 import { rememberMerchant, applyMerchantCategory } from './merchant-rules'
@@ -64,7 +64,9 @@ export const listExpenses = createServerFn({ method: 'POST' })
     const conds = [eq(expense.userId, user.id)]
     if (data.from) conds.push(gte(expense.occurredAt, new Date(data.from)))
     if (data.to) conds.push(lte(expense.occurredAt, new Date(data.to)))
-    if (data.categoryId) conds.push(eq(expense.categoryId, data.categoryId))
+    // '__none__' is the "uncategorized" sentinel used by the transactions filter.
+    if (data.categoryId === '__none__') conds.push(isNull(expense.categoryId))
+    else if (data.categoryId) conds.push(eq(expense.categoryId, data.categoryId))
     return db
       .select(expenseView)
       .from(expense)

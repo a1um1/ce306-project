@@ -21,9 +21,27 @@ export function formatThaiDate(iso: string | Date, withTime = true): string {
   return `${date} ${hh}:${mm}`
 }
 
+// Time only — the day lives in the list's date header.
+export function formatTime(iso: string | Date): string {
+  const d = typeof iso === 'string' ? new Date(iso) : iso
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${hh}:${mm}`
+}
+
+// "วันนี้" / "เมื่อวาน" / "17 ต.ค. 69" for a YYYY-MM-DD key.
+export function dayLabel(dateKey: string): string {
+  const today = new Date()
+  const yesterday = new Date()
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (dateKey === toDateKey(today)) return 'วันนี้'
+  if (dateKey === toDateKey(yesterday)) return 'เมื่อวาน'
+  const [y, m, d] = dateKey.split('-').map(Number)
+  return `${d} ${THAI_MONTHS[m - 1]} ${String(y + 543).slice(-2)}`
+}
+
 // Local-time date keys (YYYY-MM-DD) so range filters line up with what the user sees.
-export function toDateKey(d: Date): string {
-  const m = String(d.getMonth() + 1).padStart(2, '0')
+export function toDateKey(d: Date): string {  const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${d.getFullYear()}-${m}-${day}`
 }

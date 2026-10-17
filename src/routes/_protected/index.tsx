@@ -60,7 +60,18 @@ function Dashboard() {
   const bounds = useMemo(() => rangeBounds(range, year), [range, year]);
   const { rows, loading } = useExpenses(bounds, reload);
 
+  // Same-length window ending just before the current one, for the delta.
+  const prevBounds = useMemo(() => {
+    const fromMs = +new Date(bounds.from);
+    const toMs = +new Date(bounds.to);
+    const span = toMs - fromMs;
+    const to = fromMs - 1;
+    return { from: new Date(to - span).toISOString(), to: new Date(to).toISOString() };
+  }, [bounds]);
+  const { rows: prevRows } = useExpenses(prevBounds, reload);
+
   const total = rows.reduce((sum, r) => sum + Number(r.amount), 0);
+  const previousTotal = prevRows.reduce((sum, r) => sum + Number(r.amount), 0);
   const slices = buildBreakdown(rows);
   const preview = rows.slice(0, PREVIEW_COUNT);
   const hidden = rows.length - preview.length;
@@ -99,6 +110,7 @@ function Dashboard() {
       <div className={page.container}>
         <Summarize
           total={total}
+          previousTotal={previousTotal}
           rows={rows}
           slices={slices}
           bounds={bounds}
@@ -124,6 +136,7 @@ function Dashboard() {
           categories={categories}
           empty="ยังไม่มีรายจ่ายในช่วงนี้"
           onChanged={refresh}
+          grouped
         />
 
         {hidden > 0 ? (
@@ -134,6 +147,7 @@ function Dashboard() {
               to: toDateKey(new Date(bounds.to)),
               categoryId: "",
               sort: "date-desc",
+              q: "",
             }}
             className={page.viewAllButton}
           >
@@ -141,6 +155,10 @@ function Dashboard() {
           </Link>
         ) : null}
       </div>
+
+      <button type="button" className={page.fab} onClick={() => setAddOpen(true)} aria-label="จดเพิ่ม">
+        <Pen size={26} strokeWidth={2} />
+      </button>
 
       <AddExpenseDialog
         open={addOpen}

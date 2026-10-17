@@ -38,6 +38,10 @@
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
+  /* Match the sibling pill buttons instead of the native select chrome. */
+  appearance: none;
+  -webkit-appearance: none;
+  text-align: center;
 }
 
 .yearActive {
