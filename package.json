@@ -8,6 +8,7 @@
     "build": "vite build",
     "start": "node .output/server/index.mjs",
     "typecheck": "tsc --noEmit",
+    "test": "node --test src/lib/utils/*.test.ts",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:generate": "drizzle-kit generate",
@@ -23,6 +24,8 @@
     "better-auth": "^1.7.10",
     "dotenv": "^18.0.8",
     "drizzle-orm": "^0.45.4",
+    "jsqr": "^1.4.0",
+    "lucide-react": "^1.59.0",
     "postgres": "^3.4.9",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
@@ -38,6 +41,8 @@
     "vite": "^8.3.4"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

@@ -1,0 +1,203 @@
+.error {
+  margin: 0;
+  color: #d92d20;
+  font-size: 14px;
+}
+
+/* ---- add-expense: method chooser ---- */
+
+.methods {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.method {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 20px 10px;
+  border: 0;
+  border-radius: 5px;
+  font-size: 16px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.methodManual {
+  background: #e9f4ff;
+  cursor: pointer;
+}
+
+.methodQr {
+  background: #e6f7ee;
+  cursor: pointer;
+}
+
+.methodLocked {
+  background: #ffdbb8;
+  opacity: 0.7;
+  cursor: not-allowed;
+  flex-wrap: wrap;
+}
+
+.lockTag {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 400;
+  color: #8a5a12;
+}
+
+/* ---- add-expense: form ---- */
+
+.qrBox {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.qrStatus {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.amountRow {
+  display: flex;
+  justify-content: center;
+}
+
+.amountInput {
+  width: 100%;
+  border: 0;
+  border-bottom: 3px solid #e4e4e4;
+  text-align: center;
+  font-size: 64px;
+  font-weight: 500;
+  background: transparent;
+  padding: 4px 0;
+}
+
+.amountInput:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.quickRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.categoryBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.categoryHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.categoryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cat,
+.catActive {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: none;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.catActive {
+  border-color: var(--primary);
+  background: #fff6e8;
+}
+
+.emptyHint {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* ---- category dialog ---- */
+
+.iconRow {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.iconPreview {
+  flex: 0 0 auto;
+}
+
+.iconPicker {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.iconChoice,
+.iconChoiceActive {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.iconChoiceActive {
+  border-color: var(--primary);
+  background: #fff6e8;
+}
+
+/* ---- manage categories ---- */
+
+.catList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.catListItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.catListName {
+  flex: 1 1 0;
+  font-size: 16px;
+  font-weight: 500;
+}

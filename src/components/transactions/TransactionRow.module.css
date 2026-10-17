@@ -1,0 +1,69 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 68px;
+  padding: 10px;
+  border-bottom: 2px solid var(--border);
+}
+
+.mid {
+  flex: 1 1 0;
+  min-width: 1px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.titleLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.payee {
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.metaLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pill {
+  background: var(--kbank);
+  color: #fff;
+  border-radius: 14px;
+  padding: 3px 8px;
+  font-size: 13px;
+}
+
+.date {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.amount {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  font-weight: 700;
+  font-size: 24px;
+  white-space: nowrap;
+}
+
+.currency {
+  font-size: 14px;
+  font-weight: 700;
+}

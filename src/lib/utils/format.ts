@@ -1,0 +1,74 @@
+const THAI_MONTHS = [
+  'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+  'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
+]
+
+export function formatAmount(amount: number | string): string {
+  const n = typeof amount === 'string' ? Number(amount) : amount
+  return Number.isInteger(n) ? String(n) : n.toFixed(2)
+}
+
+export function formatThaiDate(iso: string | Date, withTime = true): string {
+  const d = typeof iso === 'string' ? new Date(iso) : iso
+  const date = `${d.getDate()} ${THAI_MONTHS[d.getMonth()]} ${String(d.getFullYear() + 543).slice(-2)}`
+  if (!withTime) return date
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${date} ${hh}:${mm}`
+}
+
+// Local-time date keys (YYYY-MM-DD) so range filters line up with what the user sees.
+export function toDateKey(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
+}
+
+export type RangeKey = 'today' | 'week' | 'month' | 'halfYear'
+
+export const RANGE_LABEL: Record<RangeKey, string> = {
+  today: 'วันนี้',
+  week: 'สัปดาห์นี้',
+  month: 'เดือนนี้',
+  halfYear: '6 เดือนย้อนหลัง',
+}
+
+export function rangeBounds(key: RangeKey): { from: string; to: string } {
+  const now = new Date()
+  const to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+  let start: Date
+  switch (key) {
+    case 'today':
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      break
+    case 'week': {
+      // Thai week starts Monday.
+      const dow = now.getDay() === 0 ? 6 : now.getDay() - 1
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow)
+      break
+    }
+    case 'month':
+      start = new Date(now.getFullYear(), now.getMonth(), 1)
+      break
+    case 'halfYear':
+      start = new Date(now.getFullYear(), now.getMonth() - 5, 1)
+      break
+  }
+  return { from: start.toISOString(), to: to.toISOString() }
+}
+
+// Date input value (YYYY-MM-DD) -> local day bounds as ISO instants.
+export function dayStartIso(dateKey: string): string {
+  const [y, m, d] = dateKey.split('-').map(Number)
+  return new Date(y, m - 1, d, 0, 0, 0).toISOString()
+}
+
+export function dayEndIso(dateKey: string): string {
+  const [y, m, d] = dateKey.split('-').map(Number)
+  return new Date(y, m - 1, d, 23, 59, 59).toISOString()
+}
+
+export function csvField(value: string): string {
+  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+}
+

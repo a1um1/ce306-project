@@ -8,6 +8,13 @@
       "when": 1792226839876,
       "tag": "0000_lean_jack_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792228352638,
+      "tag": "0001_slimy_redwing",
+      "breakpoints": true
     }
   ]
 }

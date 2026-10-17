@@ -1,0 +1,59 @@
+.page {
+  position: relative;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  overflow: hidden;
+}
+
+.bg {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.logo {
+  position: relative;
+  width: 89px;
+  height: 89px;
+  border-radius: 19px;
+  background: var(--primary);
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logoImg {
+  display: block;
+  transform: rotate(-10deg);
+}
+
+.title {
+  position: relative;
+  margin: 0;
+  font-size: 40px;
+  font-weight: 700;
+}
+
+.tagline {
+  position: relative;
+  margin: 0;
+  font-size: 20px;
+}
+
+.button {
+  position: relative;
+  padding: 14px 51px;
+  border: 2px solid var(--border);
+  border-radius: 84px;
+  background: var(--surface);
+  font-size: 20px;
+  font-weight: 500;
+  cursor: pointer;
+}

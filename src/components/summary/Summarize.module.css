@@ -1,0 +1,39 @@
+.card {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 20px 30px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.chartWrap {
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+  flex: 0 0 auto;
+}
+
+.usage {
+  flex: 1 1 0;
+  min-width: 1px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 5px 0;
+}
+
+.usageLabel {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.usageTotal {
+  margin: 0;
+  font-size: 48px;
+  font-weight: 700;
+  line-height: 1.1;
+}

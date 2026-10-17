@@ -1,0 +1,126 @@
+.page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+
+.container {
+  width: 900px;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 19px;
+}
+
+.listTitle {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 500;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pill {
+  height: 55px;
+  padding: 14px 51px;
+  border-radius: 84px;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.addButton {
+  height: 52px;
+  padding: 14px 28px;
+  border-radius: 84px;
+  border: 2px solid var(--primary);
+  background: var(--primary);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-top: 9px;
+}
+
+.empty {
+  padding: 32px 0;
+  color: var(--muted);
+  font-size: 16px;
+  text-align: center;
+}
+
+/* filter bar (transactions page) */
+.filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  width: 100%;
+  margin-top: 9px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fieldLabel {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.fieldInput {
+  padding: 10px 14px;
+  border: 2px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  font-size: 15px;
+}
+
+.exportButton {
+  padding: 12px 22px;
+  border-radius: 84px;
+  border: 2px solid var(--primary);
+  background: var(--primary);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-left: auto;
+}

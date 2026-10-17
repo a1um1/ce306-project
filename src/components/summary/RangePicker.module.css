@@ -1,0 +1,27 @@
+.picker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 23px;
+  background: var(--surface);
+  flex: 0 0 auto;
+}
+
+.item,
+.active {
+  padding: 4px 8px;
+  border-radius: 35px;
+  border: 0;
+  background: none;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.active {
+  background: var(--primary);
+  color: #fff;
+}
