@@ -222,8 +222,18 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
           : 'อัปโหลด QR สลิป'
         : 'กรอกข้อมูลรายจ่าย'
 
+  // Reading or reviewing slips holds unsaved work: don't let a stray click or
+  // Escape throw it away. The close button still works.
+  const importing = source === 'qr' && (phase === 'processing' || phase === 'summary')
+
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title={modalTitle} width={step === 'choose' ? 560 : 780}>
+    <Modal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={modalTitle}
+      width={step === 'choose' ? 560 : 780}
+      dismissible={!importing}
+    >
       {step === 'choose' ? (
         <div className={styles.methods}>
           <div className={`${styles.method} ${styles.methodLocked}`} aria-disabled>

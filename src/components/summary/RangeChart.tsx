@@ -144,11 +144,16 @@ export function RangeChart({ range, bounds, rows, slices }: Props) {
     )
   }
 
+  const months = range === 'year' ? 12 : 6
   const totals = monthlyTotals(rows)
   return (
     <Bars
-      label="รายจ่ายรายเดือนย้อนหลัง 6 เดือน"
-      buckets={lastMonths(anchor, 6).map((month) => ({
+      label={
+        range === 'year'
+          ? `รายจ่ายรายเดือนปี ${anchor.getFullYear() + 543}`
+          : 'รายจ่ายรายเดือนย้อนหลัง 6 เดือน'
+      }
+      buckets={lastMonths(anchor, months).map((month) => ({
         label: THAI_MONTHS[month.getMonth()],
         value: totals.get(monthKey(month)) ?? 0,
       }))}

@@ -28,16 +28,15 @@ if !noHighlight {
     try? fm.createDirectory(atPath: "highlight", withIntermediateDirectories: true)
 }
 
-// OCR is CPU-bound and independent per slip, so run all of them at once.
-// libdispatch picks the pool size; a lock keeps the result slots ordered.
+// Vision already saturates the ANE/GPU: running slips concurrently gives the
+// same wall time but inflates per-slip latency, so keep it serial and ordered.
 var results = [[String: Any]?](repeating: nil, count: images.count)
-let lock = NSLock()
 
-DispatchQueue.concurrentPerform(iterations: images.count) { index in
+for index in 0..<images.count {
     let path = images[index]
     guard let cg = loadCGImage(path) else {
         FileHandle.standardError.write("skip (unreadable): \(path)\n".data(using: .utf8)!)
-        return
+        continue
     }
     do {
         let start = DispatchTime.now()
@@ -50,9 +49,7 @@ DispatchQueue.concurrentPerform(iterations: images.count) { index in
         }
         let ms = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000
         fields["durationMs"] = (ms * 10).rounded() / 10
-        lock.lock()
         results[index] = fields
-        lock.unlock()
     } catch {
         FileHandle.standardError.write("error \(path): \(error)\n".data(using: .utf8)!)
     }

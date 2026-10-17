@@ -28,20 +28,24 @@ export function toDateKey(d: Date): string {
   return `${d.getFullYear()}-${m}-${day}`
 }
 
-export type RangeKey = 'today' | 'week' | 'month' | 'halfYear'
+export type RangeKey = 'today' | 'week' | 'month' | 'halfYear' | 'year'
 
-export const RANGE_ORDER: RangeKey[] = ['today', 'week', 'month', 'halfYear']
+export const RANGE_ORDER: RangeKey[] = ['today', 'week', 'month', 'halfYear', 'year']
 
 export const RANGE_LABEL: Record<RangeKey, string> = {
   today: 'วันนี้',
   week: 'สัปดาห์นี้',
   month: 'เดือนนี้',
   halfYear: '6 เดือนย้อนหลัง',
+  year: 'ทั้งปี',
 }
 
-export function rangeBounds(key: RangeKey): { from: string; to: string } {
+export function rangeBounds(
+  key: RangeKey,
+  year = new Date().getFullYear(),
+): { from: string; to: string } {
   const now = new Date()
-  const to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+  let end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
   let start: Date
   switch (key) {
     case 'today':
@@ -59,8 +63,12 @@ export function rangeBounds(key: RangeKey): { from: string; to: string } {
     case 'halfYear':
       start = new Date(now.getFullYear(), now.getMonth() - 5, 1)
       break
+    case 'year':
+      start = new Date(year, 0, 1)
+      end = new Date(year, 11, 31, 23, 59, 59)
+      break
   }
-  return { from: start.toISOString(), to: to.toISOString() }
+  return { from: start.toISOString(), to: end.toISOString() }
 }
 
 // Date input value (YYYY-MM-DD) -> local day bounds as ISO instants.

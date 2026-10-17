@@ -9,11 +9,22 @@ type Props = {
   title: string
   children: ReactNode
   width?: number
+  /** When false, only the close button dismisses: outside press and Escape are ignored. */
+  dismissible?: boolean
 }
 
-export function Modal({ open, onOpenChange, title, children, width = 560 }: Props) {
+export function Modal({ open, onOpenChange, title, children, width = 560, dismissible = true }: Props) {
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog.Root
+      open={open}
+      disablePointerDismissal={!dismissible}
+      onOpenChange={(next, event) => {
+        if (!dismissible && !next && (event.reason === 'outside-press' || event.reason === 'escape-key')) {
+          return
+        }
+        onOpenChange(next)
+      }}
+    >
       <Dialog.Portal>
         <Dialog.Backdrop className={styles.backdrop} />
         <Dialog.Popup className={styles.popup} style={{ width }}>

@@ -11,10 +11,12 @@ type Props = {
   slices: BreakdownSlice[]
   bounds: { from: string; to: string }
   range: RangeKey
+  year: number
   onRangeChange: (key: RangeKey) => void
+  onYearChange: (year: number) => void
 }
 
-export function Summarize({ total, rows, slices, bounds, range, onRangeChange }: Props) {
+export function Summarize({ total, rows, slices, bounds, range, year, onRangeChange, onYearChange }: Props) {
   return (
     <section className={styles.card}>
       <div className={styles.chartWrap}>
@@ -27,7 +29,7 @@ export function Summarize({ total, rows, slices, bounds, range, onRangeChange }:
             <p className={styles.usageLabel}>ยอดใช้จ่าย</p>
             <p className={styles.usageTotal}>{formatAmount(total)}฿</p>
           </div>
-          <RangePicker value={range} onChange={onRangeChange} />
+          <RangePicker value={range} year={year} onChange={onRangeChange} onYearChange={onYearChange} />
         </div>
 
         {slices.length > 0 ? (

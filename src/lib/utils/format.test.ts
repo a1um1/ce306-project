@@ -18,5 +18,5 @@ test('a far-past instant falls back to the widest range', () => {
 })
 
 test('range order is smallest to widest', () => {
-  assert.deepEqual(RANGE_ORDER, ['today', 'week', 'month', 'halfYear'])
+  assert.deepEqual(RANGE_ORDER, ['today', 'week', 'month', 'halfYear', 'year'])
 })

@@ -16,7 +16,24 @@ import { useExpenses } from "@/lib/hooks/use-expenses";
 
 const parent = getRouteApi("/_protected");
 
+export type TxSearch = { from: string; to: string; categoryId: string };
+
+// Default filter: the current month up to today, no category.
+export const defaultTxSearch = (now = new Date()): TxSearch => ({
+  from: toDateKey(new Date(now.getFullYear(), now.getMonth(), 1)),
+  to: toDateKey(now),
+  categoryId: "",
+});
+
 export const Route = createFileRoute("/_protected/transactions")({
+  validateSearch: (search: Record<string, unknown>): TxSearch => {
+    const def = defaultTxSearch();
+    return {
+      from: typeof search.from === "string" && search.from ? search.from : def.from,
+      to: typeof search.to === "string" && search.to ? search.to : def.to,
+      categoryId: typeof search.categoryId === "string" ? search.categoryId : "",
+    };
+  },
   loader: async () => ({ categories: await listCategories() }),
   component: Transactions,
 });
@@ -24,12 +41,15 @@ export const Route = createFileRoute("/_protected/transactions")({
 function Transactions() {
   const { user } = parent.useRouteContext();
   const { categories } = Route.useLoaderData();
+  const { from, to, categoryId } = Route.useSearch();
+  const navigate = Route.useNavigate();
 
-  const today = new Date();
-  const [from, setFrom] = useState(toDateKey(new Date(today.getFullYear(), today.getMonth(), 1)));
-  const [to, setTo] = useState(toDateKey(today));
-  const [categoryId, setCategoryId] = useState("");
   const [reload, setReload] = useState(0);
+
+  const setFrom = (value: string) => void navigate({ search: (prev) => ({ ...prev, from: value }) });
+  const setTo = (value: string) => void navigate({ search: (prev) => ({ ...prev, to: value }) });
+  const setCategoryId = (value: string) =>
+    void navigate({ search: (prev) => ({ ...prev, categoryId: value }) });
 
   const { rows, loading } = useExpenses(
     { from: dayStartIso(from), to: dayEndIso(to), categoryId: categoryId || undefined },

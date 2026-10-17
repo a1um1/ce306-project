@@ -1,7 +1,7 @@
 // Vision OCR: image -> recognized text observations.
 import Foundation
 import Vision
-import AppKit
+import ImageIO
 
 struct Obs {
     let text: String
@@ -12,7 +12,7 @@ struct Obs {
 func recognize(_ cg: CGImage) throws -> [Obs] {
     let request = VNRecognizeTextRequest()
     request.recognitionLevel = .accurate
-    request.usesLanguageCorrection = true
+    request.usesLanguageCorrection = false
     request.recognitionLanguages = ["th-TH", "en-US"]
     try VNImageRequestHandler(cgImage: cg, options: [:]).perform([request])
     return (request.results ?? []).compactMap { o in
@@ -21,9 +21,14 @@ func recognize(_ cg: CGImage) throws -> [Obs] {
     }
 }
 
-func loadCGImage(_ path: String) -> CGImage? {
-    guard let img = NSImage(contentsOfFile: path),
-          let tiff = img.tiffRepresentation,
-          let rep = NSBitmapImageRep(data: tiff) else { return nil }
-    return rep.cgImage
+// Single-pass decode + downscale. maxEdge caps the long side: 0.6x of a typical
+// slip is the accuracy cliff we measured; keep >= 760.
+func loadCGImage(_ path: String, maxEdge: Int = 760) -> CGImage? {
+    guard let src = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil) else { return nil }
+    let opts: [CFString: Any] = [
+        kCGImageSourceCreateThumbnailFromImageAlways: true,
+        kCGImageSourceCreateThumbnailWithTransform: true,
+        kCGImageSourceThumbnailMaxPixelSize: maxEdge,
+    ]
+    return CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary)
 }

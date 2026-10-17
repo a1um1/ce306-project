@@ -1,12 +1,13 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { authClient } from '@/lib/auth-client'
 import { getSession } from '@/lib/api/session'
+import { defaultDashSearch } from './_protected/index'
 import styles from './signin.module.css'
 
 export const Route = createFileRoute('/signin')({
   beforeLoad: async () => {
     const session = await getSession()
-    if (session) throw redirect({ to: '/' })
+    if (session) throw redirect({ to: '/', search: defaultDashSearch() })
   },
   component: SignIn,
 })

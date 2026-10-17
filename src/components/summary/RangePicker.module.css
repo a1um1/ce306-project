@@ -25,3 +25,22 @@
   background: var(--primary);
   color: #fff;
 }
+
+.year,
+.yearActive {
+  margin-left: 4px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 35px;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.yearActive {
+  background: var(--primary);
+  color: #fff;
+}
