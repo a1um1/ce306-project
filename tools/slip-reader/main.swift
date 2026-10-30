@@ -2,6 +2,7 @@
 // Build: swiftc -O main.swift Sources/*.swift -o bin/slipreader
 // Run:   bin/slipreader <image|dir> [more...]
 import Foundation
+import FoundationModels
 
 let fm = FileManager.default
 let args = Array(CommandLine.arguments.dropFirst())
@@ -28,6 +29,13 @@ for a in args {
 // latency, so keep it serial and ordered.
 var results = [[String: Any]?](repeating: nil, count: images.count)
 
+let model = SystemLanguageModel.default
+if case .unavailable = model.availability {
+    FileHandle.standardError.write(
+        "reader: \(SlipError.modelUnavailable(String(describing: model.availability)).localizedDescription)\n".data(using: .utf8)!)
+    exit(2)
+}
+
 for index in 0..<images.count {
     let path = images[index]
     guard let cg = loadCGImage(path) else {
@@ -35,9 +43,13 @@ for index in 0..<images.count {
         continue
     }
     do {
+        // A fresh session per slip: reusing one grows the transcript, which
+        // made each later slip slower (3.0s -> 5.5s over a batch).
+        let session = LanguageModelSession(model: model, instructions: instructions)
+
         let start = DispatchTime.now()
         let obs = try recognize(cg)
-        var fields = try await extract(file: path, obs: obs)
+        var fields = try await extract(file: path, obs: obs, session: session)
         let ms = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000
         fields["durationMs"] = (ms * 10).rounded() / 10
         results[index] = fields

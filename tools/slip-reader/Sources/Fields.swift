@@ -4,7 +4,11 @@
 // The model generates against a runtime GenerationSchema instead of a
 // @Generable struct: the FoundationModels macro plugin ships only with full
 // Xcode, so Command Line Tools cannot compile the macros. The schema is the
-// same guarantee — the model can only return these seven fields.
+// same guarantee — the model can only return these fields.
+//
+// The schema holds only what the app stores (reference, date line, amount,
+// sender, recipient). Fee and slip header cost ~0.3s each to generate and are
+// not used, so they are not asked for.
 //
 // Dates are the one deterministic step: the model copies the printed date line
 // and the Buddhist-era conversion below is mechanical. Asking the model to do
@@ -72,10 +76,8 @@ private func slipSchema() throws -> GenerationSchema {
                     description: "Transferred amount in THB, not the fee.",
                     schema: .init(type: Double.self)
                 ),
-                .init(name: "fee", description: "Fee in THB, 0 when the slip shows none.", schema: .init(type: Double.self)),
-                text("sender", "Sender name."),
+                text("sender", "Sender name, the first line of the sender block."),
                 text("recipient", "Recipient name; a bank name or account number is never the recipient."),
-                text("title", "Slip type as printed, e.g. จ่ายบิลสำเร็จ."),
             ]
         ),
         dependencies: []
@@ -130,18 +132,14 @@ func dateTime(from raw: String) -> String? {
     return nil
 }
 
-func extract(file: String, obs: [Obs]) async throws -> [String: Any] {
+// A fresh session per slip: reusing one grows the transcript, which made each
+// later slip slower in a batch (3.0s -> 5.5s over 21 slips).
+func extract(file: String, obs: [Obs], session: LanguageModelSession) async throws -> [String: Any] {
     let ocrText = obs.sorted { $0.box.midY > $1.box.midY }.map(\.text).joined(separator: "\n")
     guard !ocrText.isEmpty else { throw SlipError.noText }
 
-    let model = SystemLanguageModel.default
-    guard case .available = model.availability else {
-        throw SlipError.modelUnavailable(String(describing: model.availability))
-    }
-
-    let session = LanguageModelSession(model: model, instructions: instructions)
-    // Low temperature: the same slip should read the same way every import.
-    let options = GenerationOptions(temperature: 0.2)
+    // Greedy sampling is both repeatable and the fastest option here.
+    let options = GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 120)
     let slip = try await session.respond(
         to: "OCR text:\n\(ocrText)",
         schema: try slipSchema(),
@@ -151,21 +149,17 @@ func extract(file: String, obs: [Obs]) async throws -> [String: Any] {
     let id = try slip.value(String.self, forProperty: "transactionId")
     let dateText = try slip.value(String.self, forProperty: "dateText")
     let amount = try slip.value(Double.self, forProperty: "amount")
-    let fee = try slip.value(Double.self, forProperty: "fee")
     let sender = try slip.value(String.self, forProperty: "sender")
     let recipient = try slip.value(String.self, forProperty: "recipient")
-    let title = try slip.value(String.self, forProperty: "title")
 
     let date = dateTime(from: dateText) ?? dateTime(from: ocrText)
     return [
         "file": (file as NSString).lastPathComponent,
-        "type": title,
         "transactionId": id,
         "dateTime": date ?? NSNull(),
         "amount": max(0, amount),
-        "fee": max(0, fee),
         "currency": "THB",
-        "sender": ["name": sender, "accounts": []] as [String: Any],
+        "sender": ["name": sender] as [String: Any],
         "recipient": ["name": recipient] as [String: Any],
     ]
 }
