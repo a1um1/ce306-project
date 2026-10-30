@@ -75,6 +75,7 @@ export async function processImportJob(jobId: string): Promise<void> {
     for (let start = 0; start < meta.length; start += CHUNK) {
       const slice = meta.slice(start, start + CHUNK)
       const dataUrls = await readChunk(jobId, start, slice.length)
+      // One OCR + model pass over the chunk.
       let reads: (SlipRead | null)[]
       try {
         reads = await readSlipImages(dataUrls)

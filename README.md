@@ -79,7 +79,10 @@ To serve both from one origin instead, put a reverse proxy in front that forward
 
 ## Slip reader tool
 
-`tools/slip-reader` is a standalone macOS tool: a Swift Vision OCR binary plus a thin Node CLI.
+`tools/slip-reader` is a standalone macOS tool: Apple Vision reads the text off the
+slip, and Apple's on-device foundation model turns that text into the fields
+(JSON). There are no per-bank zones, templates or QR pattern matching: one prompt
+reads any slip layout.
 
 ```bash
 cd tools/slip-reader
@@ -87,7 +90,14 @@ pnpm build                    # swiftc -> bin/slipreader
 node cli.ts data --json
 ```
 
-Swift sources are split under `tools/slip-reader/Sources/` (`Ocr`, `Parsing`, `Fields`, `Highlight`) with `main.swift` as the entry point.
+Swift sources: `Sources/Ocr.swift` (Vision), `Sources/Fields.swift` (schema-guided
+model call), `main.swift` (CLI). The model generates against a runtime
+`GenerationSchema`, so it can only return the slip fields; `@Generable` structs
+need the macro plugin that ships with full Xcode. Requires macOS 26+ with Apple
+Intelligence enabled.
+Dates are the one mechanical step: the model copies the printed date line and
+`Fields.swift` converts the Buddhist-era year, because asking the model to do that
+arithmetic misread times in testing.
 
 ### OCR service
 
@@ -110,3 +120,4 @@ returning `(SlipRead | null)[]`, one slot per image.
 Nothing in the web app calls this directly: the API owns it. Set
 `SLIP_READER_URL=http://127.0.0.1:4100` for the API to use the service; leave it
 empty to run the binary in-process (the default).
+

@@ -1,6 +1,6 @@
-// Native OCR runner: data URLs -> slip fields. Shared by the REST service
-// (server.ts) and the API's in-process fallback. Drives the macOS Vision
-// binary in bin/slipreader.
+// Native runner: data URLs -> slip fields. Shared by the REST service
+// (server.ts) and the API's in-process path. Drives the macOS binary in
+// bin/slipreader (Vision OCR + on-device foundation model).
 import { execFile, execFileSync } from 'node:child_process'
 import { existsSync, readdirSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -22,8 +22,8 @@ const BIN = join(TOOL_DIR, 'bin', 'slipreader')
 
 let built = false
 
-// shortcut: macOS-only Vision OCR; elsewhere this throws and the client falls
-// back to QR decoding. Build once per process.
+// shortcut: macOS-only Vision + Foundation Models; elsewhere this throws and
+// the client falls back to QR decoding. Build once per process.
 function ensureBinary() {
   if (built || existsSync(BIN)) {
     built = true
@@ -38,8 +38,7 @@ function ensureBinary() {
 
 function runBinary(images: string[], cwd: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    // --no-highlight: the overlay PNG is wasted work for an API call.
-    execFile(BIN, [...images, '--no-highlight'], { cwd, maxBuffer: 128 * 1024 * 1024 }, (error, stdout) => {
+    execFile(BIN, images, { cwd, maxBuffer: 128 * 1024 * 1024 }, (error, stdout) => {
       if (error) reject(error)
       else resolve(stdout)
     })
@@ -55,7 +54,7 @@ type RawSlip = {
   recipient?: { name?: string }
 }
 
-// One process, all slips: the binary OCRs them in parallel. Results come back
+// One process, all slips: the binary reads them in order. Results come back
 // keyed by "<index>.png" so a slot that failed to read stays null.
 export async function readSlipImages(dataUrls: string[]): Promise<(SlipRead | null)[]> {
   const slots: (SlipRead | null)[] = dataUrls.map(() => null)

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// REST wrapper over the macOS Vision OCR binary. Vision only exists on macOS,
-// so this service runs natively; the API calls it when SLIP_READER_URL is set.
+// REST wrapper over the macOS reader binary (Vision OCR + foundation model).
+// Vision only exists on macOS, so this service runs natively; the API calls it
+// when SLIP_READER_URL is set.
 //
 // Run: pnpm slips:serve     (http://127.0.0.1:4100)
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'

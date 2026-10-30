@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as SigninRouteImport } from './routes/signin'
 import { Route as ProtectedIndexRouteImport } from './routes/_protected/index'
+import { Route as ProtectedReaderRouteImport } from './routes/_protected/reader'
 import { Route as ProtectedTransactionsRouteImport } from './routes/_protected/transactions'
 
 const ProtectedRoute = ProtectedRouteImport.update({
@@ -28,6 +29,11 @@ const ProtectedIndexRoute = ProtectedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ProtectedRoute,
 } as any)
+const ProtectedReaderRoute = ProtectedReaderRouteImport.update({
+  id: '/reader',
+  path: '/reader',
+  getParentRoute: () => ProtectedRoute,
+} as any)
 const ProtectedTransactionsRoute = ProtectedTransactionsRouteImport.update({
   id: '/transactions',
   path: '/transactions',
@@ -37,10 +43,12 @@ const ProtectedTransactionsRoute = ProtectedTransactionsRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof ProtectedIndexRoute
   '/signin': typeof SigninRoute
+  '/reader': typeof ProtectedReaderRoute
   '/transactions': typeof ProtectedTransactionsRoute
 }
 export interface FileRoutesByTo {
   '/signin': typeof SigninRoute
+  '/reader': typeof ProtectedReaderRoute
   '/transactions': typeof ProtectedTransactionsRoute
   '/': typeof ProtectedIndexRoute
 }
@@ -48,18 +56,20 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_protected': typeof ProtectedRouteWithChildren
   '/signin': typeof SigninRoute
+  '/_protected/reader': typeof ProtectedReaderRoute
   '/_protected/transactions': typeof ProtectedTransactionsRoute
   '/_protected/': typeof ProtectedIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/signin' | '/transactions'
+  fullPaths: '/' | '/signin' | '/reader' | '/transactions'
   fileRoutesByTo: FileRoutesByTo
-  to: '/signin' | '/transactions' | '/'
+  to: '/signin' | '/reader' | '/transactions' | '/'
   id:
     | '__root__'
     | '/_protected'
     | '/signin'
+    | '/_protected/reader'
     | '/_protected/transactions'
     | '/_protected/'
   fileRoutesById: FileRoutesById
@@ -92,6 +102,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedIndexRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/reader': {
+      id: '/_protected/reader'
+      path: '/reader'
+      fullPath: '/reader'
+      preLoaderRoute: typeof ProtectedReaderRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
     '/_protected/transactions': {
       id: '/_protected/transactions'
       path: '/transactions'
@@ -103,11 +120,13 @@ declare module '@tanstack/react-router' {
 }
 
 interface ProtectedRouteChildren {
+  ProtectedReaderRoute: typeof ProtectedReaderRoute
   ProtectedTransactionsRoute: typeof ProtectedTransactionsRoute
   ProtectedIndexRoute: typeof ProtectedIndexRoute
 }
 
 const ProtectedRouteChildren: ProtectedRouteChildren = {
+  ProtectedReaderRoute: ProtectedReaderRoute,
   ProtectedTransactionsRoute: ProtectedTransactionsRoute,
   ProtectedIndexRoute: ProtectedIndexRoute,
 }

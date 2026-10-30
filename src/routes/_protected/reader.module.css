@@ -1,0 +1,135 @@
+.lead {
+  margin: 0;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.dropzone,
+.dropzoneBusy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 32px 20px;
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.dropzone:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.dropzoneBusy {
+  cursor: default;
+  color: var(--muted);
+}
+
+.meta {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.error {
+  margin: 0;
+  color: #d92d20;
+  font-size: 14px;
+}
+
+.results {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 12px;
+  width: 100%;
+  margin-top: 9px;
+}
+
+.card {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.thumb {
+  width: 96px;
+  height: 96px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #faf8f3;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.file {
+  font-size: 13px;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 6px;
+  margin: 0;
+}
+
+.fields > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.fields dt {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.fields dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.failed {
+  font-size: 14px;
+  color: #d92d20;
+}
+
+.qr {
+  font-size: 12px;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.json {
+  font-size: 13px;
+}
+
+.json summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.json pre {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #faf8f3;
+  font-size: 12px;
+  overflow-x: auto;
+}

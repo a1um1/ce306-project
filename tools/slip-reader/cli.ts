@@ -15,7 +15,6 @@ interface Slip {
   file: string;
   type: string;
   transactionId: string;
-  date: string;
   dateTime: string | null;
   amount: number;
   fee: number;
@@ -37,7 +36,7 @@ for (const a of argv) {
   else if (a === "--table") mode = "table";
   else if (a === "-h" || a === "--help") {
     console.log("Usage: node cli.ts <image|dir>... [--table|--json|--csv]");
-    console.log("Reads KBank slips. Highlight PNGs are written to ./highlight/.");
+    console.log("Reads slips with Vision OCR + the on-device foundation model.");
     process.exit(0);
   } else if (a.startsWith("-")) {
     console.error(`unknown flag: ${a}`);
@@ -66,7 +65,7 @@ function csvField(v: string): string {
 }
 
 function printCsv(rows: Slip[]): void {
-  const head = ["file", "type", "transactionId", "date", "dateTime", "amount", "fee", "currency", "sender", "recipient", "durationMs"];
+  const head = ["file", "type", "transactionId", "dateTime", "amount", "fee", "currency", "sender", "recipient", "durationMs"];
   console.log(head.join(","));
   for (const s of rows) {
     console.log(
@@ -74,7 +73,6 @@ function printCsv(rows: Slip[]): void {
         s.file,
         s.type,
         s.transactionId,
-        s.date,
         s.dateTime ?? "",
         String(s.amount),
         String(s.fee),
@@ -93,7 +91,7 @@ function printTable(rows: Slip[]): void {
     rows.map((s) => ({
       file: s.file,
       type: s.type,
-      date: s.date,
+      date: s.dateTime ?? "",
       amount: s.amount.toFixed(2),
       fee: s.fee.toFixed(2),
       sender: s.sender.name,

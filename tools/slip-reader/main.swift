@@ -1,14 +1,13 @@
-// KBank slip reader: Vision OCR -> structured fields -> JSON + highlight PNG.
+// Slip reader: Vision OCR -> Apple's on-device foundation model -> JSON.
 // Build: swiftc -O main.swift Sources/*.swift -o bin/slipreader
-// Run:   bin/slipreader <image|dir> [more...] [--no-highlight]
+// Run:   bin/slipreader <image|dir> [more...]
 import Foundation
 
 let fm = FileManager.default
-var args = Array(CommandLine.arguments.dropFirst())
-let noHighlight = args.contains("--no-highlight")
-args.removeAll { $0 == "--no-highlight" }
+let args = Array(CommandLine.arguments.dropFirst())
+
 guard !args.isEmpty else {
-    FileHandle.standardError.write("usage: slipreader <image|dir>... [--no-highlight]\n".data(using: .utf8)!)
+    FileHandle.standardError.write("usage: slipreader <image|dir>...\n".data(using: .utf8)!)
     exit(1)
 }
 
@@ -24,12 +23,9 @@ for a in args {
     }
 }
 
-if !noHighlight {
-    try? fm.createDirectory(atPath: "highlight", withIntermediateDirectories: true)
-}
-
-// Vision already saturates the ANE/GPU: running slips concurrently gives the
-// same wall time but inflates per-slip latency, so keep it serial and ordered.
+// Vision already saturates the ANE/GPU, and the model session is on-device:
+// running slips concurrently gives the same wall time but inflates per-slip
+// latency, so keep it serial and ordered.
 var results = [[String: Any]?](repeating: nil, count: images.count)
 
 for index in 0..<images.count {
@@ -41,17 +37,12 @@ for index in 0..<images.count {
     do {
         let start = DispatchTime.now()
         let obs = try recognize(cg)
-        var fields = parse(file: path, obs: obs)
-        let regions = (fields.removeValue(forKey: "_regions") as? [(String, Obs)]) ?? []
-        if !noHighlight {
-            let name = ((path as NSString).lastPathComponent as NSString).deletingPathExtension
-            highlight(cg, regions: regions, to: "highlight/\(name).highlight.png")
-        }
+        var fields = try await extract(file: path, obs: obs)
         let ms = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000
         fields["durationMs"] = (ms * 10).rounded() / 10
         results[index] = fields
     } catch {
-        FileHandle.standardError.write("error \(path): \(error)\n".data(using: .utf8)!)
+        FileHandle.standardError.write("error \(path): \(error.localizedDescription)\n".data(using: .utf8)!)
     }
 }
 

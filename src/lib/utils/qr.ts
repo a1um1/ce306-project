@@ -30,6 +30,8 @@ export function parseSlipPayload(payload: string): { amount?: number; ref?: stri
   return out
 }
 
+// 2-char tag, 2-digit decimal length, value. Values nest, so callers walk the
+// block they care about (tag 62) themselves.
 function tlv(input: string): Record<string, string> {
   const out: Record<string, string> = {}
   let i = 0
