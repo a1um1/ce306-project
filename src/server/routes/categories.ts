@@ -1,7 +1,7 @@
-import { and, asc, eq, or, sql } from 'drizzle-orm'
+import { and, asc, count, eq, or, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { db } from '@/db'
-import { category } from '@/db/schema'
+import { category, expense } from '@/db/schema'
 import type { CategoryInput } from '@/lib/api/types'
 import { suggestCategoryId } from '@/lib/utils/categorize'
 import { requireUser } from '../auth-context'
@@ -14,9 +14,21 @@ export const categoryRoutes = new Hono()
 categoryRoutes.get('/', async (c) => {
   const user = await requireUser(c)
   const rows = await db
-    .select()
+    .select({
+      id: category.id,
+      userId: category.userId,
+      name: category.name,
+      icon: category.icon,
+      color: category.color,
+      createdAt: category.createdAt,
+      updatedAt: category.updatedAt,
+      // The picker puts the most-used categories first within the built-ins.
+      usage: count(expense.id),
+    })
     .from(category)
+    .leftJoin(expense, and(eq(expense.categoryId, category.id), eq(expense.userId, user.id)))
     .where(or(sql`${category.userId} is null`, eq(category.userId, user.id)))
+    .groupBy(category.id)
     .orderBy(sql`${category.userId} asc nulls first`, asc(category.createdAt))
   return c.json(rows)
 })

@@ -60,6 +60,9 @@ export type Category = {
   color: string
   createdAt: string
   updatedAt: string
+  // How many of this account's expenses use the category. The list endpoint
+  // returns it so the picker can order built-ins by usage.
+  usage?: number
 }
 export type CategoryInput = { name: string; icon: string; color: string }
 

@@ -182,6 +182,36 @@
   gap: 10px;
 }
 
+/* one labelled group of tiles (the user's own, then the built-ins) */
+.categoryGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.groupLabel {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.expandToggle {
+  align-self: center;
+  margin-top: 2px;
+  padding: 6px 16px;
+  border: 2px solid var(--border);
+  border-radius: 84px;
+  background: var(--surface);
+  font-size: 14px;
+  font-weight: 500;
+  color: inherit;
+  cursor: pointer;
+}
+
+.expandToggle:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
 /* built-in category tile: same shape as .cat, but not clickable */
 .catFixed {
   display: flex;

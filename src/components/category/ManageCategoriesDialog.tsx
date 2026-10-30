@@ -1,20 +1,20 @@
-import { CategoryIcon } from './CategoryIcon'
-import { Modal } from '@/components/ui/Modal'
-import type { CategoryRecord } from './CategoryDialog'
-import ui from '@/components/ui/ui.module.css'
-import styles from '@/components/ui/dialogs.module.css'
+import { CategoryIcon } from "./CategoryIcon";
+import { Modal } from "@/components/ui/Modal";
+import type { CategoryRecord } from "./CategoryDialog";
+import ui from "@/components/ui/ui.module.css";
+import styles from "@/components/ui/dialogs.module.css";
 
 type Props = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  categories: CategoryRecord[]
-  onEdit: (category: CategoryRecord) => void
-  onNew: () => void
-}
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  categories: CategoryRecord[];
+  onEdit: (category: CategoryRecord) => void;
+  onNew: () => void;
+};
 
 export function ManageCategoriesDialog({ open, onOpenChange, categories, onEdit, onNew }: Props) {
-  const mine = categories.filter((c) => c.userId)
-  const builtIn = categories.filter((c) => !c.userId)
+  const mine = categories.filter((c) => c.userId);
+  const builtIn = categories.filter((c) => !c.userId);
 
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="หมวดหมู่" width={520}>
@@ -36,7 +36,7 @@ export function ManageCategoriesDialog({ open, onOpenChange, categories, onEdit,
         สร้างใหม่
       </button>
 
-      <span className={ui.label}>หมวดหมู่พื้นฐาน (ใช้ร่วมกัน แก้ไขไม่ได้)</span>
+      <span className={ui.label}>หมวดหมู่พื้นฐาน</span>
       <div className={styles.categoryGrid}>
         {builtIn.map((c) => (
           <div key={c.id} className={styles.catFixed}>
@@ -46,5 +46,5 @@ export function ManageCategoriesDialog({ open, onOpenChange, categories, onEdit,
         ))}
       </div>
     </Modal>
-  )
+  );
 }
