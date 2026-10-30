@@ -88,3 +88,25 @@ node cli.ts data --json
 ```
 
 Swift sources are split under `tools/slip-reader/Sources/` (`Ocr`, `Parsing`, `Fields`, `Highlight`) with `main.swift` as the entry point.
+
+### OCR service
+
+Apple Vision only runs on macOS, so the reader can be exposed as a local REST
+service instead of being spawned inside the API process:
+
+```bash
+pnpm slips:serve              # http://127.0.0.1:4100
+```
+
+| Env | Default | Purpose |
+| --- | --- | --- |
+| `SLIP_READER_PORT` | `4100` | Port |
+| `SLIP_READER_HOST` | `127.0.0.1` | Bind address |
+| `SLIP_READER_TOKEN` | — | Optional bearer token |
+
+Endpoints: `GET /health`, and `POST /read` with `{ "dataUrls": [...] }`
+returning `(SlipRead | null)[]`, one slot per image.
+
+Nothing in the web app calls this directly: the API owns it. Set
+`SLIP_READER_URL=http://127.0.0.1:4100` for the API to use the service; leave it
+empty to run the binary in-process (the default).

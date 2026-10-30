@@ -8,6 +8,7 @@
   },
   "scripts": {
     "slips": "node cli.ts",
+    "serve": "node server.ts",
     "build": "swiftc -O main.swift Sources/*.swift -o bin/slipreader"
   }
 }
