@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server/index.ts & vite dev",
+    "dev": "tsx watch src/server/index.ts & vite dev & bun run slips:serve",
     "dev:web": "vite dev",
     "dev:api": "tsx watch src/server/index.ts",
     "build": "vite build",
