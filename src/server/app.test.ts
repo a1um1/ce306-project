@@ -9,7 +9,9 @@ process.env.BETTER_AUTH_SECRET ??= "test-secret-test-secret-test-secret";
 process.env.GOOGLE_CLIENT_ID ??= "test-google-client-id";
 process.env.GOOGLE_CLIENT_SECRET ??= "test-google-client-secret";
 
-if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL must be set to run tests");
+// Contract tests: nothing below authenticates, so no query actually runs. The
+// placeholder keeps the app importable without a .env or a live Postgres (CI).
+process.env.DATABASE_URL ??= "postgres://paytail:paytail@localhost:5432/paytail";
 
 const { app } = await import("./app.ts");
 

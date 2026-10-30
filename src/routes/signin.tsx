@@ -24,7 +24,15 @@ function SignIn() {
       <button
         type="button"
         className={styles.button}
-        onClick={() => authClient.signIn.social({ provider: 'google' })}
+        onClick={() =>
+          authClient.signIn.social({
+            provider: 'google',
+            // Without this, Better Auth falls back to its baseURL (the API
+            // origin) and drops the user on the API after Google.
+            callbackURL: `${window.location.origin}/`,
+            errorCallbackURL: `${window.location.origin}/signin`,
+          })
+        }
       >
         Sign in with Google
       </button>
