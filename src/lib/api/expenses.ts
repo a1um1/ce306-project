@@ -1,148 +1,42 @@
-import { createServerFn } from '@tanstack/react-start'
-import { and, desc, eq, gte, isNotNull, isNull, lte } from 'drizzle-orm'
-import { db } from '@/db'
-import { category, expense } from '@/db/schema'
-import { rememberMerchant, applyMerchantCategory } from './merchant-rules'
-import { requireUser } from './session'
+import { apiFetch } from './client'
+import type { Expense, ExpenseFilter, ExpenseInput, ExpenseRow, ExpenseUpdate } from './types'
 
-export type ExpenseFilter = { from?: string; to?: string; categoryId?: string }
-export type ExpenseInput = {
-  title: string
-  payee?: string | null
-  amount: number
-  occurredAt: string
-  categoryId?: string | null
-  source?: 'manual' | 'qr'
-  qrPayload?: string | null
-  externalId?: string | null
+export type { Expense, ExpenseFilter, ExpenseInput, ExpenseRow, ExpenseUpdate } from './types'
+
+function toQuery(filter: ExpenseFilter): string {
+  const params = new URLSearchParams()
+  if (filter.from) params.set('from', filter.from)
+  if (filter.to) params.set('to', filter.to)
+  if (filter.categoryId) params.set('categoryId', filter.categoryId)
+  const query = params.toString()
+  return query ? `?${query}` : ''
 }
 
-export type ExpenseRow = {
-  id: string
-  title: string
-  payee: string | null
-  amount: string
-  occurredAt: Date
-  source: string
-  categoryId: string | null
-  categoryName: string | null
-  categoryIcon: string | null
-  categoryColor: string | null
+export function listExpenses(filter: ExpenseFilter = {}): Promise<ExpenseRow[]> {
+  return apiFetch<ExpenseRow[]>(`/api/expenses${toQuery(filter)}`)
 }
 
-const expenseView = {
-  id: expense.id,
-  title: expense.title,
-  payee: expense.payee,
-  amount: expense.amount,
-  occurredAt: expense.occurredAt,
-  source: expense.source,
-  categoryId: expense.categoryId,
-  categoryName: category.name,
-  categoryIcon: category.icon,
-  categoryColor: category.color,
+export function listImportedExternalIds(): Promise<string[]> {
+  return apiFetch<string[]>('/api/expenses/external-ids')
 }
 
-function toRow(item: ExpenseInput) {
-  return {
-    id: crypto.randomUUID(),
-    title: item.title,
-    payee: item.payee ?? null,
-    amount: item.amount.toFixed(2),
-    occurredAt: new Date(item.occurredAt),
-    categoryId: item.categoryId ?? null,
-    source: item.source ?? 'manual',
-    qrPayload: item.qrPayload ?? null,
-    externalId: item.externalId ?? null,
-  }
+export function createExpense(input: ExpenseInput): Promise<Expense> {
+  return apiFetch<Expense>('/api/expenses', { method: 'POST', body: JSON.stringify(input) })
 }
 
-export const listExpenses = createServerFn({ method: 'POST' })
-  .validator((data: ExpenseFilter) => data)
-  .handler(async ({ data }) => {
-    const user = await requireUser()
-    const conds = [eq(expense.userId, user.id)]
-    if (data.from) conds.push(gte(expense.occurredAt, new Date(data.from)))
-    if (data.to) conds.push(lte(expense.occurredAt, new Date(data.to)))
-    // '__none__' is the "uncategorized" sentinel used by the transactions filter.
-    if (data.categoryId === '__none__') conds.push(isNull(expense.categoryId))
-    else if (data.categoryId) conds.push(eq(expense.categoryId, data.categoryId))
-    return db
-      .select(expenseView)
-      .from(expense)
-      .leftJoin(category, eq(expense.categoryId, category.id))
-      .where(and(...conds))
-      .orderBy(desc(expense.occurredAt))
-  })
-
-export const listImportedExternalIds = createServerFn({ method: 'GET' }).handler(async () => {
-  const user = await requireUser()
-  const rows = await db
-    .select({ externalId: expense.externalId })
-    .from(expense)
-    .where(and(eq(expense.userId, user.id), isNotNull(expense.externalId)))
-  return rows.map((row) => row.externalId).filter((value): value is string => Boolean(value))
-})
-
-export const createExpense = createServerFn({ method: 'POST' })
-  .validator((data: ExpenseInput) => data)
-  .handler(async ({ data }) => {
-    const user = await requireUser()
-    const [row] = await db
-      .insert(expense)
-      .values({ ...toRow(data), userId: user.id })
-      .returning()
-    await rememberMerchant(user.id, data.title, data.categoryId)
-    await applyMerchantCategory(user.id, data.title, data.categoryId, row?.id)
-    return row
-  })
-
-export const importExpenses = createServerFn({ method: 'POST' })
-  .validator((data: { items: ExpenseInput[] }) => data)
-  .handler(async ({ data }) => {
-    const user = await requireUser()
-    if (data.items.length === 0) return { inserted: 0, skipped: 0 }
-    const rows = await db
-      .insert(expense)
-      .values(data.items.map((item) => ({ ...toRow(item), userId: user.id })))
-      // Unique on (user_id, external_id): re-importing a slip is a no-op.
-      .onConflictDoNothing({ target: [expense.userId, expense.externalId] })
-      .returning({ id: expense.id })
-    return { inserted: rows.length, skipped: data.items.length - rows.length }
-  })
-
-export type ExpenseUpdate = {
-  id: string
-  title: string
-  payee?: string | null
-  amount: number
-  categoryId?: string | null
+export function importExpenses(
+  items: ExpenseInput[],
+): Promise<{ inserted: number; skipped: number }> {
+  return apiFetch('/api/expenses/import', { method: 'POST', body: JSON.stringify({ items }) })
 }
 
-export const updateExpense = createServerFn({ method: 'POST' })
-  .validator((data: ExpenseUpdate) => data)
-  .handler(async ({ data }) => {
-    const user = await requireUser()
-    const [row] = await db
-      .update(expense)
-      .set({
-        title: data.title,
-        payee: data.payee ?? null,
-        amount: data.amount.toFixed(2),
-        categoryId: data.categoryId ?? null,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(expense.id, data.id), eq(expense.userId, user.id)))
-      .returning()
-    await rememberMerchant(user.id, data.title, data.categoryId)
-    await applyMerchantCategory(user.id, data.title, data.categoryId, data.id)
-    return row ?? null
+export function updateExpense(id: string, input: ExpenseUpdate): Promise<Expense | null> {
+  return apiFetch<Expense | null>(`/api/expenses/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
   })
+}
 
-export const deleteExpense = createServerFn({ method: 'POST' })
-  .validator((data: { id: string }) => data)
-  .handler(async ({ data }) => {
-    const user = await requireUser()
-    await db.delete(expense).where(and(eq(expense.id, data.id), eq(expense.userId, user.id)))
-    return { ok: true }
-  })
+export function deleteExpense(id: string): Promise<{ ok: true }> {
+  return apiFetch(`/api/expenses/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}

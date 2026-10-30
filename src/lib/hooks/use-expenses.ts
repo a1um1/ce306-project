@@ -8,7 +8,7 @@ export function useExpenses(filter: ExpenseFilter, reload = 0) {
   useEffect(() => {
     let alive = true
     setLoading(true)
-    listExpenses({ data: filter })
+    listExpenses(filter)
       .then((result) => {
         if (alive) setRows(result as ExpenseRow[])
       })

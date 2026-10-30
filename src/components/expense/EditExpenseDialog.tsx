@@ -39,14 +39,11 @@ export function EditExpenseDialog({ open, item, categories, onOpenChange, onSave
     setBusy(true)
     setError(null)
     try {
-      await updateExpense({
-        data: {
-          id: item.id,
-          title: title.trim(),
-          payee: payee.trim() || null,
-          amount: value,
-          categoryId,
-        },
+      await updateExpense(item.id, {
+        title: title.trim(),
+        payee: payee.trim() || null,
+        amount: value,
+        categoryId,
       })
       onSaved()
       onOpenChange(false)

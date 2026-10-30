@@ -134,6 +134,9 @@ function Transactions() {
       search: (prev) => ({ ...prev, from: toDateKey(new Date(b.from)), to: toDateKey(new Date(b.to)) }),
     });
   };
+  const resetFilters = () => {
+    void navigate({ search: () => defaultTxSearch() });
+  };
 
   // A background import can land slips older than the filter's start; widen the
   // window so they show, then refetch.

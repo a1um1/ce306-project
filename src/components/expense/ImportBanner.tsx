@@ -33,7 +33,7 @@ export function ImportBanner() {
 
     const poll = async () => {
       try {
-        const next = await getImportJob({ data: { id } })
+        const next = await getImportJob(id)
         if (!alive) return
         if (!next) return dismiss()
         setJob(next)

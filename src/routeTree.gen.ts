@@ -13,7 +13,6 @@ import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as SigninRouteImport } from './routes/signin'
 import { Route as ProtectedIndexRouteImport } from './routes/_protected/index'
 import { Route as ProtectedTransactionsRouteImport } from './routes/_protected/transactions'
-import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const ProtectedRoute = ProtectedRouteImport.update({
   id: '/_protected',
@@ -34,23 +33,16 @@ const ProtectedTransactionsRoute = ProtectedTransactionsRouteImport.update({
   path: '/transactions',
   getParentRoute: () => ProtectedRoute,
 } as any)
-const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
-  id: '/api/auth/$',
-  path: '/api/auth/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof ProtectedIndexRoute
   '/signin': typeof SigninRoute
   '/transactions': typeof ProtectedTransactionsRoute
-  '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
   '/signin': typeof SigninRoute
   '/transactions': typeof ProtectedTransactionsRoute
   '/': typeof ProtectedIndexRoute
-  '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -58,26 +50,23 @@ export interface FileRoutesById {
   '/signin': typeof SigninRoute
   '/_protected/transactions': typeof ProtectedTransactionsRoute
   '/_protected/': typeof ProtectedIndexRoute
-  '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/signin' | '/transactions' | '/api/auth/$'
+  fullPaths: '/' | '/signin' | '/transactions'
   fileRoutesByTo: FileRoutesByTo
-  to: '/signin' | '/transactions' | '/' | '/api/auth/$'
+  to: '/signin' | '/transactions' | '/'
   id:
     | '__root__'
     | '/_protected'
     | '/signin'
     | '/_protected/transactions'
     | '/_protected/'
-    | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   ProtectedRoute: typeof ProtectedRouteWithChildren
   SigninRoute: typeof SigninRoute
-  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -110,13 +99,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedTransactionsRouteImport
       parentRoute: typeof ProtectedRoute
     }
-    '/api/auth/$': {
-      id: '/api/auth/$'
-      path: '/api/auth/$'
-      fullPath: '/api/auth/$'
-      preLoaderRoute: typeof ApiAuthSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
@@ -137,7 +119,6 @@ const ProtectedRouteWithChildren = ProtectedRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   ProtectedRoute: ProtectedRouteWithChildren,
   SigninRoute: SigninRoute,
-  ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -49,9 +49,9 @@ export function CategoryDialog({ open, onOpenChange, initial, existingCount, onS
     setError(null)
     try {
       if (initial) {
-        await updateCategory({ data: { id: initial.id, name: name.trim(), icon, color } })
+        await updateCategory(initial.id, { name: name.trim(), icon, color })
       } else {
-        await createCategory({ data: { name: name.trim(), icon, color } })
+        await createCategory({ name: name.trim(), icon, color })
       }
       onSaved()
       onOpenChange(false)

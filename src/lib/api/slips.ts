@@ -1,17 +1,11 @@
-import { createServerFn } from '@tanstack/react-start'
-import { readSlipImages, type SlipRead } from './slip-reader.server'
-import { requireUser } from './session'
+import { apiFetch } from './client'
+import type { SlipRead } from './types'
 
-export type { SlipRead }
+export type { SlipRead } from './types'
 
-export const readSlips = createServerFn({ method: 'POST' })
-  .validator((data: { dataUrls: string[] }) => data)
-  .handler(async ({ data }): Promise<(SlipRead | null)[]> => {
-    await requireUser()
-    if (data.dataUrls.length === 0) return []
-    try {
-      return await readSlipImages(data.dataUrls)
-    } catch {
-      return data.dataUrls.map(() => null)
-    }
+export function readSlips(dataUrls: string[]): Promise<(SlipRead | null)[]> {
+  return apiFetch<(SlipRead | null)[]>('/api/slips/read', {
+    method: 'POST',
+    body: JSON.stringify({ dataUrls }),
   })
+}

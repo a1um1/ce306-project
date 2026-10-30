@@ -35,7 +35,7 @@ export function TransactionList({ rows, loading, categories, empty, onChanged, g
     if (!window.confirm(`ลบ “${item.title}” ออกถาวร?`)) return
     setBusy(true)
     try {
-      await deleteExpense({ data: { id: item.id } })
+      await deleteExpense(item.id)
       onChanged()
     } catch (cause) {
       window.alert(cause instanceof Error ? cause.message : 'ลบไม่สำเร็จ ลองอีกครั้ง')

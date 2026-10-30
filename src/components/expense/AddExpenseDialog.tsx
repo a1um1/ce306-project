@@ -81,7 +81,7 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
     try {
       const prepared = await prepareUploads(images, (done, total) => setProgress({ done, total }))
       setPhase('saving')
-      const { id } = await createImportJob({ data: { images: prepared } })
+      const { id } = await createImportJob(prepared)
       if (!id) {
         setError('ไม่พบรูปที่อ่านได้ ลองอีกครั้ง')
         setPhase('pick')
@@ -116,15 +116,13 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
     setError(null)
     try {
       await createExpense({
-        data: {
-          title: title.trim(),
-          payee: payee.trim() || null,
-          amount: value,
-          occurredAt: new Date().toISOString(),
-          categoryId: manualCategory,
-          source: 'manual',
-          qrPayload: null,
-        },
+        title: title.trim(),
+        payee: payee.trim() || null,
+        amount: value,
+        occurredAt: new Date().toISOString(),
+        categoryId: manualCategory,
+        source: 'manual',
+        qrPayload: null,
       })
       onSaved()
       onOpenChange(false)

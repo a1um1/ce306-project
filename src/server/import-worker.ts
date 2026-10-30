@@ -5,8 +5,9 @@ import { db } from '@/db'
 import { expense, importJob } from '@/db/schema'
 import { suggestCategoryId } from '@/lib/utils/categorize'
 import { parseSlipPayload } from '@/lib/utils/qr'
+import type { SlipRead, UploadImage } from '@/lib/api/types'
 import { loadMerchantRules } from './merchant-rules'
-import { readSlipImages, type SlipRead } from './slip-reader.server'
+import { readSlipImages } from './slip-reader'
 
 // Vision OCR handles the whole slip, so send a few at a time: one process per
 // chunk, and progress after each chunk.
@@ -15,7 +16,6 @@ const CHUNK = 12
 // pick back up. Live jobs refresh updatedAt every chunk.
 const STALE_MS = 90_000
 
-export type UploadImage = { data: string; name: string; payload: string | null }
 type Meta = { name: string; payload: string | null }
 
 const ROOT = join(process.cwd(), '.data', 'imports')

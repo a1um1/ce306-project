@@ -10,11 +10,14 @@ const YEAR_BACK = 5
 export function RangePicker({
   value,
   year,
+  withYear = true,
   onChange,
   onYearChange,
 }: {
   value: RangeKey | null
   year: number
+  // The transactions page has explicit from/to dates, so the year select is redundant there.
+  withYear?: boolean
   onChange: (key: RangeKey) => void
   onYearChange: (year: number) => void
 }) {
@@ -34,21 +37,23 @@ export function RangePicker({
           {RANGE_LABEL[key]}
         </button>
       ))}
-      <select
-        className={value === 'year' ? styles.yearActive : styles.year}
-        value={value === 'year' ? String(year) : ''}
-        onChange={(e) => onYearChange(Number(e.target.value))}
-        aria-label="เลือกปี"
-      >
-        <option value="" disabled hidden>
-          เลือกปี
-        </option>
-        {years.map((y) => (
-          <option key={y} value={y}>
-            ทั้งปี {y + 543}
+      {withYear ? (
+        <select
+          className={value === 'year' ? styles.yearActive : styles.year}
+          value={value === 'year' ? String(year) : ''}
+          onChange={(e) => onYearChange(Number(e.target.value))}
+          aria-label="เลือกปี"
+        >
+          <option value="" disabled hidden>
+            เลือกปี
           </option>
-        ))}
-      </select>
+          {years.map((y) => (
+            <option key={y} value={y}>
+              ทั้งปี {y + 543}
+            </option>
+          ))}
+        </select>
+      ) : null}
     </div>
   )
 }

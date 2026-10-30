@@ -101,7 +101,7 @@ export const expense = pgTable(
 )
 
 // A slip-batch import runs in the background so the user can close the dialog
-// (or the tab). Rows persist progress; `import-worker.server.ts` drives them and
+// (or the tab). Rows persist progress; `src/server/import-worker.ts` drives them and
 // resumes a job left running if the server restarts. The uploaded images live
 // in .data/imports/<id>/ until the job finishes.
 export const importJob = pgTable('import_job', {

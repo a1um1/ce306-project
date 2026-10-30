@@ -1,16 +1,10 @@
-import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
-import { getRequestHeaders } from '@tanstack/react-start/server'
-import { auth } from '../auth'
+import { apiFetch } from './client'
+import type { Session } from './types'
 
-export const getSession = createServerFn({ method: 'GET' }).handler(async () => {
-  return auth.api.getSession({ headers: getRequestHeaders() })
-})
+export type { Session, SessionUser } from './types'
 
-type SessionUser = { id: string; name: string; email: string; image?: string | null }
-
-// Server-fn auth guard. Every data endpoint resolves the user through here.
-export const requireUser = createServerOnlyFn(async (): Promise<SessionUser> => {
-  const session = await auth.api.getSession({ headers: getRequestHeaders() })
-  if (!session) throw new Error('Unauthorized')
-  return session.user as SessionUser
-})
+// Null when signed out. Route guards call this on every navigation, so during
+// SSR the api client forwards the browser's cookies to the API server.
+export function getSession(): Promise<Session> {
+  return apiFetch<Session>('/api/session')
+}

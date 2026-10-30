@@ -3,14 +3,7 @@ import { existsSync, readdirSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-
-export type SlipRead = {
-  amount: number
-  dateTime: string | null
-  transactionId: string
-  title: string
-  recipient: string
-}
+import type { SlipRead } from '@/lib/api/types'
 
 const TOOL_DIR = join(process.cwd(), 'tools', 'slip-reader')
 const BIN = join(TOOL_DIR, 'bin', 'slipreader')
