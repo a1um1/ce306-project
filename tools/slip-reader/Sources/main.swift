@@ -3,6 +3,7 @@ import Foundation
 import NIOCore
 import FoundationModels
 
+
 let model = SystemLanguageModel(guardrails: .permissiveContentTransformations)
 let session = LanguageModelSession(model: model, instructions: instructions)
 session.prewarm()
@@ -21,11 +22,9 @@ router.post("slip") { request, context -> Response in
 		guard let cg = loadCGImage(from: data) else {
 				return Response(status: .unprocessableContent)
 		}
-		print("slip-reader: loaded CGImage \(cg.width)x\(cg.height)")
-		let obs = try await recognizeStructured(cg)
-		print("slip-reader: recognized \(obs.count) observations")
-		let fields = try await extract(file: "upload", obs: obs, session: session)
-		print("slip-reader: extracted fields \(fields)")
+		var blocks: [Block] = try await recognizeBlocks(cg)
+		let ocrText: String = formatBlocks(blocks)
+		let fields = try await extract(file: "upload", ocrText: ocrText, session: session)
 		let json = try JSONSerialization.data(withJSONObject: fields, options: [.withoutEscapingSlashes])
 		
 		return Response(

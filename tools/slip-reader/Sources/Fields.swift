@@ -51,10 +51,10 @@ private func matches(_ text: String, _ pattern: String) -> [String]? {
     }
 }
 
-func extract(file: String, obs: [Obs], session: LanguageModelSession) async throws -> [String: Any] {
+func extract(file: String, ocrText: String, session: LanguageModelSession) async throws -> [String: Any] {
 	do {
-		let ocrText = obs.map(\.text).joined(separator: "\n")
     guard !ocrText.isEmpty else { throw SlipError.noText }
+		print(ocrText)
     let options = GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 120)
     let slip = try await session.respond(
         to: "OCR text:\n\(ocrText)",

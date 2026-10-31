@@ -5,6 +5,17 @@ import CoreImage
 import CoreImage.CIFilterBuiltins
 
 private let ciContext = CIContext()
+struct Block {
+    var lines: [String]
+    var box: CGRect
+    var text: String { lines.joined(separator: "\n") }
+}
+
+func formatBlocks(_ blocks: [Block]) -> String {
+    blocks.enumerated()
+        .map { "\($0.element.text)" }
+        .joined(separator: "\n")
+}
 
 struct Obs {
     let text: String
@@ -41,6 +52,39 @@ func recognizeStructured(_ cg: CGImage) async throws -> [Obs] {
     return doc.text.transcript
         .split(whereSeparator: \.isNewline)
         .map { Obs(text: String($0), box: .zero, confidence: 1) }
+}
+
+private func readingOrder(_ a: Block, _ b: Block) -> Bool {
+    // top to bottom; if on the same band, left to right
+    if abs(a.box.midY - b.box.midY) > min(a.box.height, b.box.height) * 0.5 {
+        return a.box.midY > b.box.midY
+    }
+    return a.box.minX < b.box.minX
+}
+
+@available(macOS 26.0, iOS 26.0, *)
+func recognizeBlocks(_ cg: CGImage) async throws -> [Block] {
+    let request = RecognizeDocumentsRequest()
+    let observations = try await request.perform(on: cg)
+    guard let doc = observations.first?.document else { return [] }
+
+    let blocks = doc.paragraphs
+        .map { p in
+            Block(
+                lines: p.transcript
+                    .split(whereSeparator: \.isNewline)
+                    .map { String($0).trimmingCharacters(in: .whitespaces) }
+                    .filter { !$0.isEmpty },
+                box: p.boundingRegion.boundingBox.cgRect
+            )
+        }
+        .filter { !$0.lines.isEmpty }
+        .sorted(by: readingOrder)
+
+    if ProcessInfo.processInfo.environment["SLIP_DEBUG"] != nil {
+        FileHandle.standardError.write((formatBlocks(blocks) + "\n---\n").data(using: .utf8)!)
+    }
+    return blocks
 }
 
 func loadCGImage(from data: Data, maxEdge: Int = 0) -> CGImage? {
