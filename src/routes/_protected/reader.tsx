@@ -80,8 +80,6 @@ function SlipTest() {
 
   return (
     <div className={page.page}>
-      <AppHeader user={user} categories={categories} onChanged={() => void router.invalidate()} />
-
       <div className={page.container}>
         <div className={page.headerRow}>
           <h2 className={page.listTitle}>ทดสอบอ่านสลิป</h2>

@@ -3,7 +3,6 @@ import { Pen } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AddExpenseDialog } from "@/components/expense/AddExpenseDialog";
 import { IMPORTED_EVENT } from "@/components/expense/ImportBanner";
-import { AppHeader } from "@/components/layout/AppHeader";
 import { CategoryDialog } from "@/components/category/CategoryDialog";
 import { Summarize } from "@/components/summary/Summarize";
 import { TransactionList } from "@/components/transactions/TransactionList";
@@ -19,20 +18,16 @@ import {
 import { buildBreakdown } from "@/lib/utils/summary";
 import { useExpenses } from "@/lib/hooks/use-expenses";
 
-const parent = getRouteApi("/_protected");
-
-// The dashboard teases the newest few; the rest live on the transactions page.
 const PREVIEW_COUNT = 10;
 
 type DashSearch = { range: RangeKey; year: number };
 
-// Default view: today of the current year.
 export const defaultDashSearch = (): DashSearch => ({
   range: "today",
   year: new Date().getFullYear(),
 });
 
-export const Route = createFileRoute("/_protected/")({
+export const Route = createFileRoute("/_protected/dashboard")({
   validateSearch: (search: Record<string, unknown>): DashSearch => ({
     range: RANGE_ORDER.includes(search.range as RangeKey) ? (search.range as RangeKey) : "today",
     year: Number(search.year) || new Date().getFullYear(),
@@ -42,7 +37,6 @@ export const Route = createFileRoute("/_protected/")({
 });
 
 function Dashboard() {
-  const { user } = parent.useRouteContext();
   const { categories } = Route.useLoaderData();
   const { range, year } = Route.useSearch();
   const navigate = Route.useNavigate();
@@ -81,8 +75,6 @@ function Dashboard() {
     void router.invalidate();
   };
 
-  // Imported slips carry their own (often past) date: widen the window so they
-  // are actually visible instead of landing outside "today".
   const onImported = (earliest?: string) => {
     if (earliest) {
       const needed = rangeKeyFor(earliest);
@@ -91,8 +83,6 @@ function Dashboard() {
     refresh();
   };
 
-  // The background import finishes after the dialog is gone; widen the window
-  // (imported slips carry their own past date) and refetch.
   useEffect(() => {
     const handler = (event: Event) => {
       const earliest =
@@ -105,8 +95,6 @@ function Dashboard() {
 
   return (
     <div className={page.page}>
-      <AppHeader user={user} categories={categories} onChanged={refresh} />
-
       <div className={page.container}>
         <Summarize
           total={total}
@@ -156,7 +144,12 @@ function Dashboard() {
         ) : null}
       </div>
 
-      <button type="button" className={page.fab} onClick={() => setAddOpen(true)} aria-label="จดเพิ่ม">
+      <button
+        type="button"
+        className={page.fab}
+        onClick={() => setAddOpen(true)}
+        aria-label="จดเพิ่ม"
+      >
         <Pen size={26} strokeWidth={2} />
       </button>
 

@@ -9,14 +9,20 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as ProtectedRouteImport } from './routes/_protected'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProtectedRouteRouteImport } from './routes/_protected/route'
 import { Route as SigninRouteImport } from './routes/signin'
-import { Route as ProtectedIndexRouteImport } from './routes/_protected/index'
+import { Route as ProtectedDashboardRouteImport } from './routes/_protected/dashboard'
 import { Route as ProtectedLabelRouteImport } from './routes/_protected/label'
 import { Route as ProtectedReaderRouteImport } from './routes/_protected/reader'
 import { Route as ProtectedTransactionsRouteImport } from './routes/_protected/transactions'
 
-const ProtectedRoute = ProtectedRouteImport.update({
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProtectedRouteRoute = ProtectedRouteRouteImport.update({
   id: '/_protected',
   getParentRoute: () => rootRouteImport,
 } as any)
@@ -25,77 +31,90 @@ const SigninRoute = SigninRouteImport.update({
   path: '/signin',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProtectedIndexRoute = ProtectedIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => ProtectedRoute,
+const ProtectedDashboardRoute = ProtectedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => ProtectedRouteRoute,
 } as any)
 const ProtectedLabelRoute = ProtectedLabelRouteImport.update({
   id: '/label',
   path: '/label',
-  getParentRoute: () => ProtectedRoute,
+  getParentRoute: () => ProtectedRouteRoute,
 } as any)
 const ProtectedReaderRoute = ProtectedReaderRouteImport.update({
   id: '/reader',
   path: '/reader',
-  getParentRoute: () => ProtectedRoute,
+  getParentRoute: () => ProtectedRouteRoute,
 } as any)
 const ProtectedTransactionsRoute = ProtectedTransactionsRouteImport.update({
   id: '/transactions',
   path: '/transactions',
-  getParentRoute: () => ProtectedRoute,
+  getParentRoute: () => ProtectedRouteRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof ProtectedIndexRoute
+  '/': typeof IndexRoute
   '/signin': typeof SigninRoute
+  '/dashboard': typeof ProtectedDashboardRoute
   '/label': typeof ProtectedLabelRoute
   '/reader': typeof ProtectedReaderRoute
   '/transactions': typeof ProtectedTransactionsRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof IndexRoute
   '/signin': typeof SigninRoute
+  '/dashboard': typeof ProtectedDashboardRoute
   '/label': typeof ProtectedLabelRoute
   '/reader': typeof ProtectedReaderRoute
   '/transactions': typeof ProtectedTransactionsRoute
-  '/': typeof ProtectedIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/_protected': typeof ProtectedRouteWithChildren
+  '/': typeof IndexRoute
+  '/_protected': typeof ProtectedRouteRouteWithChildren
   '/signin': typeof SigninRoute
+  '/_protected/dashboard': typeof ProtectedDashboardRoute
   '/_protected/label': typeof ProtectedLabelRoute
   '/_protected/reader': typeof ProtectedReaderRoute
   '/_protected/transactions': typeof ProtectedTransactionsRoute
-  '/_protected/': typeof ProtectedIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/signin' | '/label' | '/reader' | '/transactions'
+  fullPaths:
+    '/' | '/signin' | '/dashboard' | '/label' | '/reader' | '/transactions'
   fileRoutesByTo: FileRoutesByTo
-  to: '/signin' | '/label' | '/reader' | '/transactions' | '/'
+  to: '/' | '/signin' | '/dashboard' | '/label' | '/reader' | '/transactions'
   id:
     | '__root__'
+    | '/'
     | '/_protected'
     | '/signin'
+    | '/_protected/dashboard'
     | '/_protected/label'
     | '/_protected/reader'
     | '/_protected/transactions'
-    | '/_protected/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  ProtectedRoute: typeof ProtectedRouteWithChildren
+  IndexRoute: typeof IndexRoute
+  ProtectedRouteRoute: typeof ProtectedRouteRouteWithChildren
   SigninRoute: typeof SigninRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_protected': {
       id: '/_protected'
       path: ''
       fullPath: '/'
-      preLoaderRoute: typeof ProtectedRouteImport
+      preLoaderRoute: typeof ProtectedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/signin': {
@@ -105,57 +124,58 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SigninRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_protected/': {
-      id: '/_protected/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof ProtectedIndexRouteImport
-      parentRoute: typeof ProtectedRoute
+    '/_protected/dashboard': {
+      id: '/_protected/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof ProtectedDashboardRouteImport
+      parentRoute: typeof ProtectedRouteRoute
     }
     '/_protected/label': {
       id: '/_protected/label'
       path: '/label'
       fullPath: '/label'
       preLoaderRoute: typeof ProtectedLabelRouteImport
-      parentRoute: typeof ProtectedRoute
+      parentRoute: typeof ProtectedRouteRoute
     }
     '/_protected/reader': {
       id: '/_protected/reader'
       path: '/reader'
       fullPath: '/reader'
       preLoaderRoute: typeof ProtectedReaderRouteImport
-      parentRoute: typeof ProtectedRoute
+      parentRoute: typeof ProtectedRouteRoute
     }
     '/_protected/transactions': {
       id: '/_protected/transactions'
       path: '/transactions'
       fullPath: '/transactions'
       preLoaderRoute: typeof ProtectedTransactionsRouteImport
-      parentRoute: typeof ProtectedRoute
+      parentRoute: typeof ProtectedRouteRoute
     }
   }
 }
 
-interface ProtectedRouteChildren {
+interface ProtectedRouteRouteChildren {
+  ProtectedDashboardRoute: typeof ProtectedDashboardRoute
   ProtectedLabelRoute: typeof ProtectedLabelRoute
   ProtectedReaderRoute: typeof ProtectedReaderRoute
   ProtectedTransactionsRoute: typeof ProtectedTransactionsRoute
-  ProtectedIndexRoute: typeof ProtectedIndexRoute
 }
 
-const ProtectedRouteChildren: ProtectedRouteChildren = {
+const ProtectedRouteRouteChildren: ProtectedRouteRouteChildren = {
+  ProtectedDashboardRoute: ProtectedDashboardRoute,
   ProtectedLabelRoute: ProtectedLabelRoute,
   ProtectedReaderRoute: ProtectedReaderRoute,
   ProtectedTransactionsRoute: ProtectedTransactionsRoute,
-  ProtectedIndexRoute: ProtectedIndexRoute,
 }
 
-const ProtectedRouteWithChildren = ProtectedRoute._addFileChildren(
-  ProtectedRouteChildren,
+const ProtectedRouteRouteWithChildren = ProtectedRouteRoute._addFileChildren(
+  ProtectedRouteRouteChildren,
 )
 
 const rootRouteChildren: RootRouteChildren = {
-  ProtectedRoute: ProtectedRouteWithChildren,
+  IndexRoute: IndexRoute,
+  ProtectedRouteRoute: ProtectedRouteRouteWithChildren,
   SigninRoute: SigninRoute,
 }
 export const routeTree = rootRouteImport

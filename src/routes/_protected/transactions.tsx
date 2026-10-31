@@ -66,11 +66,13 @@ function Transactions() {
 
   const [reload, setReload] = useState(0);
 
-  const setFrom = (value: string) => void navigate({ search: (prev) => ({ ...prev, from: value }) });
+  const setFrom = (value: string) =>
+    void navigate({ search: (prev) => ({ ...prev, from: value }) });
   const setTo = (value: string) => void navigate({ search: (prev) => ({ ...prev, to: value }) });
   const setCategoryId = (value: string) =>
     void navigate({ search: (prev) => ({ ...prev, categoryId: value }) });
-  const setSort = (value: SortKey) => void navigate({ search: (prev) => ({ ...prev, sort: value }) });
+  const setSort = (value: SortKey) =>
+    void navigate({ search: (prev) => ({ ...prev, sort: value }) });
   const setQ = (value: string) => void navigate({ search: (prev) => ({ ...prev, q: value }) });
 
   const { rows, loading } = useExpenses(
@@ -125,13 +127,21 @@ function Transactions() {
   const applyQuick = (key: RangeKey) => {
     const b = rangeBounds(key, now.getFullYear());
     void navigate({
-      search: (prev) => ({ ...prev, from: toDateKey(new Date(b.from)), to: toDateKey(new Date(b.to)) }),
+      search: (prev) => ({
+        ...prev,
+        from: toDateKey(new Date(b.from)),
+        to: toDateKey(new Date(b.to)),
+      }),
     });
   };
   const applyYear = (year: number) => {
     const b = rangeBounds("year", year);
     void navigate({
-      search: (prev) => ({ ...prev, from: toDateKey(new Date(b.from)), to: toDateKey(new Date(b.to)) }),
+      search: (prev) => ({
+        ...prev,
+        from: toDateKey(new Date(b.from)),
+        to: toDateKey(new Date(b.to)),
+      }),
     });
   };
   const resetFilters = () => {
@@ -182,8 +192,6 @@ function Transactions() {
 
   return (
     <div className={page.page}>
-      <AppHeader user={user} categories={categories} onChanged={() => setReload((n) => n + 1)} />
-
       <div className={page.container}>
         <div className={page.headerRow}>
           <h2 className={page.listTitle}>ประวัติธรุกรรม</h2>

@@ -1,16 +1,16 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
-import { authClient } from '@/lib/auth-client'
-import { getSession } from '@/lib/api/session'
-import { defaultDashSearch } from './_protected/index'
-import styles from './signin.module.css'
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { authClient } from "@/lib/auth-client";
+import { getSession } from "@/lib/api/session";
+import { defaultDashSearch } from "./_protected/dashboard";
+import styles from "./signin.module.css";
 
-export const Route = createFileRoute('/signin')({
+export const Route = createFileRoute("/signin")({
   beforeLoad: async () => {
-    const session = await getSession()
-    if (session) throw redirect({ to: '/', search: defaultDashSearch() })
+    const session = await getSession();
+    if (session) throw redirect({ to: "/dashboard", search: defaultDashSearch() });
   },
   component: SignIn,
-})
+});
 
 function SignIn() {
   return (
@@ -26,10 +26,8 @@ function SignIn() {
         className={styles.button}
         onClick={() =>
           authClient.signIn.social({
-            provider: 'google',
-            // Without this, Better Auth falls back to its baseURL (the API
-            // origin) and drops the user on the API after Google.
-            callbackURL: `${window.location.origin}/`,
+            provider: "google",
+            callbackURL: `${window.location.origin}/dashboard`,
             errorCallbackURL: `${window.location.origin}/signin`,
           })
         }
@@ -37,5 +35,5 @@ function SignIn() {
         Sign in with Google
       </button>
     </main>
-  )
+  );
 }
