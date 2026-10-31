@@ -3,7 +3,7 @@ import Foundation
 import NIOCore
 import FoundationModels
 
-let model = SystemLanguageModel.default
+let model = SystemLanguageModel(guardrails: .permissiveContentTransformations)
 let session = LanguageModelSession(model: model, instructions: instructions)
 session.prewarm()
 
