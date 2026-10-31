@@ -4,7 +4,8 @@ import { CategoryGrid } from '@/components/category/CategoryGrid'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { updateExpense, type ExpenseRow } from '@/lib/api/expenses'
+import { useUpdateExpense } from '@/lib/hooks/use-api-queries'
+import type { ExpenseRow, ExpenseUpdate } from '@/lib/api/types'
 import styles from '@/components/ui/dialogs.module.css'
 
 type Props = {
@@ -20,8 +21,9 @@ export function EditExpenseDialog({ open, item, categories, onOpenChange, onSave
   const [title, setTitle] = useState('')
   const [payee, setPayee] = useState('')
   const [categoryId, setCategoryId] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  const updateExpenseMutation = useUpdateExpense()
 
   useEffect(() => {
     if (!open || !item) return
@@ -37,23 +39,23 @@ export function EditExpenseDialog({ open, item, categories, onOpenChange, onSave
     const value = Number(amount)
     if (!title.trim()) return setError('ใส่ชื่อรายการก่อน')
     if (!value || value <= 0) return setError('ใส่จำนวนเงินก่อน')
-    setBusy(true)
     setError(null)
     try {
-      await updateExpense(item.id, {
+      const input: ExpenseUpdate = {
         title: title.trim(),
         payee: payee.trim() || null,
         amount: value,
         categoryId,
-      })
+      }
+      await updateExpenseMutation.mutateAsync({ id: item.id, input })
       onSaved()
       onOpenChange(false)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'บันทึกไม่สำเร็จ ลองอีกครั้ง')
-    } finally {
-      setBusy(false)
     }
   }
+  
+  const busy = updateExpenseMutation.isPending
 
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="แก้ไขรายจ่าย" width={780}>

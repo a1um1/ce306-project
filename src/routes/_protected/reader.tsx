@@ -2,7 +2,7 @@ import { createFileRoute, getRouteApi, useRouter } from "@tanstack/react-router"
 import { useEffect, useRef, useState } from "react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import page from "@/components/layout/page.module.css";
-import { listCategories } from "@/lib/api/categories";
+import { useCategories } from "@/lib/hooks/use-api-queries";
 import { readSlips } from "@/lib/api/slips";
 import type { SlipRead } from "@/lib/api/types";
 import { formatAmount, formatThaiDate } from "@/lib/utils/format";
@@ -19,7 +19,6 @@ type Row = {
 };
 
 export const Route = createFileRoute("/_protected/reader")({
-  loader: async () => ({ categories: await listCategories() }),
   component: SlipTest,
 });
 
@@ -27,7 +26,7 @@ export const Route = createFileRoute("/_protected/reader")({
 // returned. Nothing here writes to the database.
 function SlipTest() {
   const { user } = parent.useRouteContext();
-  const { categories } = Route.useLoaderData();
+  const { data: categories = [] } = useCategories()
   const router = useRouter();
 
   const [rows, setRows] = useState<Row[]>([]);

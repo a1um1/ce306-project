@@ -2,7 +2,8 @@ import { Fragment, useMemo, useState } from 'react'
 import type { CategoryRecord } from '@/components/category/CategoryDialog'
 import { EditExpenseDialog } from '@/components/expense/EditExpenseDialog'
 import { TransactionRow } from '@/components/transactions/TransactionRow'
-import { deleteExpense, type ExpenseRow } from '@/lib/api/expenses'
+import { useDeleteExpense } from '@/lib/hooks/use-api-queries'
+import type { ExpenseRow } from '@/lib/api/types'
 import { dayLabel, toDateKey } from '@/lib/utils/format'
 import page from '@/components/layout/page.module.css'
 
@@ -18,7 +19,8 @@ type Props = {
 
 export function TransactionList({ rows, loading, categories, empty, onChanged, grouped }: Props) {
   const [editing, setEditing] = useState<ExpenseRow | null>(null)
-  const [busy, setBusy] = useState(false)
+  
+  const deleteExpenseMutation = useDeleteExpense()
 
   const groups = useMemo(() => {
     const list: { key: string; items: ExpenseRow[] }[] = []
@@ -33,16 +35,15 @@ export function TransactionList({ rows, loading, categories, empty, onChanged, g
 
   const remove = async (item: ExpenseRow) => {
     if (!window.confirm(`ลบ “${item.title}” ออกถาวร?`)) return
-    setBusy(true)
     try {
-      await deleteExpense(item.id)
+      await deleteExpenseMutation.mutateAsync(item.id)
       onChanged()
     } catch (cause) {
       window.alert(cause instanceof Error ? cause.message : 'ลบไม่สำเร็จ ลองอีกครั้ง')
-    } finally {
-      setBusy(false)
     }
   }
+  
+  const busy = deleteExpenseMutation.isPending
 
   const renderRow = (row: ExpenseRow) => (
     <TransactionRow

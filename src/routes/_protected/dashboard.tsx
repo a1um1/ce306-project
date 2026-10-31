@@ -9,7 +9,6 @@ import { TransactionList } from "@/components/transactions/TransactionList";
 import { Button } from "@/components/ui/Button";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import page from "@/components/layout/page.module.css";
-import { listCategories } from "@/lib/api/categories";
 import {
   RANGE_ORDER,
   rangeBounds,
@@ -18,7 +17,8 @@ import {
   type RangeKey,
 } from "@/lib/utils/format";
 import { buildBreakdown } from "@/lib/utils/summary";
-import { useExpenses } from "@/lib/hooks/use-expenses";
+import { useCategories, useExpenses } from "@/lib/hooks/use-api-queries";
+import type { ExpenseFilter } from "@/lib/api/types";
 
 const PREVIEW_COUNT = 10;
 
@@ -34,17 +34,14 @@ export const Route = createFileRoute("/_protected/dashboard")({
     range: RANGE_ORDER.includes(search.range as RangeKey) ? (search.range as RangeKey) : "today",
     year: Number(search.year) || new Date().getFullYear(),
   }),
-  loader: async () => ({ categories: await listCategories() }),
   component: Dashboard,
 });
 
 function Dashboard() {
-  const { categories } = Route.useLoaderData();
   const { range, year } = Route.useSearch();
   const navigate = Route.useNavigate();
   const router = useRouter();
 
-  const [reload, setReload] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
 
@@ -54,7 +51,13 @@ function Dashboard() {
     void navigate({ search: (prev) => ({ ...prev, year: next, range: "year" }) });
 
   const bounds = useMemo(() => rangeBounds(range, year), [range, year]);
-  const { rows, loading } = useExpenses(bounds, reload);
+  const expensesFilter = useMemo<ExpenseFilter>(() => ({
+    from: bounds.from,
+    to: bounds.to,
+  }), [bounds.from, bounds.to])
+  
+  const { data: categories = [] } = useCategories()
+  const { data: rows = [], isLoading, isFetching } = useExpenses(expensesFilter)
 
   // Same-length window ending just before the current one, for the delta.
   const prevBounds = useMemo(() => {
@@ -63,27 +66,33 @@ function Dashboard() {
     const span = toMs - fromMs;
     const to = fromMs - 1;
     return { from: new Date(to - span).toISOString(), to: new Date(to).toISOString() };
-  }, [bounds]);
-  const { rows: prevRows } = useExpenses(prevBounds, reload);
+  }, [bounds])
+  
+  const prevExpensesFilter = useMemo<ExpenseFilter>(() => ({
+    from: prevBounds.from,
+    to: prevBounds.to,
+  }), [prevBounds.from, prevBounds.to])
+  
+  const { data: prevRows = [] } = useExpenses(prevExpensesFilter)
 
-  const total = rows.reduce((sum, r) => sum + Number(r.amount), 0);
-  const previousTotal = prevRows.reduce((sum, r) => sum + Number(r.amount), 0);
-  const slices = buildBreakdown(rows);
-  const preview = rows.slice(0, PREVIEW_COUNT);
-  const hidden = rows.length - preview.length;
+  const total = rows.reduce((sum, r) => sum + Number(r.amount), 0)
+  const previousTotal = prevRows.reduce((sum, r) => sum + Number(r.amount), 0)
+  const slices = buildBreakdown(rows)
+  const preview = rows.slice(0, PREVIEW_COUNT)
+  const hidden = rows.length - preview.length
+  const loading = isLoading || isFetching
 
   const refresh = () => {
-    setReload((n) => n + 1);
-    void router.invalidate();
-  };
+    void router.invalidate()
+  }
 
   const onImported = (earliest?: string) => {
     if (earliest) {
-      const needed = rangeKeyFor(earliest);
-      if (RANGE_ORDER.indexOf(needed) > RANGE_ORDER.indexOf(range)) setRange(needed);
+      const needed = rangeKeyFor(earliest)
+      if (RANGE_ORDER.indexOf(needed) > RANGE_ORDER.indexOf(range)) setRange(needed)
     }
-    refresh();
-  };
+    refresh()
+  }
 
   useEffect(() => {
     const handler = (event: Event) => {

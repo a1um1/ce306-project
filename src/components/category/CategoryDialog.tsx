@@ -4,7 +4,8 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { CATEGORY_COLORS, CATEGORY_ICONS, ICON_COMPONENT, ICON_LABEL } from '@/lib/utils/design'
-import { createCategory, updateCategory } from '@/lib/api/categories'
+import { useCreateCategory, useUpdateCategory } from '@/lib/hooks/use-api-queries'
+import type { CategoryInput } from '@/lib/api/types'
 import ui from '@/components/ui/ui.module.css'
 import styles from '@/components/ui/dialogs.module.css'
 
@@ -31,8 +32,10 @@ export function CategoryDialog({ open, onOpenChange, initial, existingCount, onS
   const [icon, setIcon] = useState<string>('food')
   const [color, setColor] = useState<string>(CATEGORY_COLORS[0])
   const [nameEdited, setNameEdited] = useState(false)
-  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  const createCategoryMutation = useCreateCategory()
+  const updateCategoryMutation = useUpdateCategory()
 
   useEffect(() => {
     if (!open) return
@@ -55,22 +58,22 @@ export function CategoryDialog({ open, onOpenChange, initial, existingCount, onS
       setError('ใส่ชื่อหมวดหมู่ก่อน')
       return
     }
-    setBusy(true)
     setError(null)
     try {
+      const input: CategoryInput = { name: name.trim(), icon, color }
       if (initial) {
-        await updateCategory(initial.id, { name: name.trim(), icon, color })
+        await updateCategoryMutation.mutateAsync({ id: initial.id, input })
       } else {
-        await createCategory({ name: name.trim(), icon, color })
+        await createCategoryMutation.mutateAsync(input)
       }
       onSaved()
       onOpenChange(false)
     } catch {
       setError('บันทึกไม่สำเร็จ ลองอีกครั้ง')
-    } finally {
-      setBusy(false)
     }
   }
+  
+  const busy = createCategoryMutation.isPending || updateCategoryMutation.isPending
 
   return (
     <Modal open={open} onOpenChange={onOpenChange} title={initial ? 'แก้ไขหมวดหมู่' : 'สร้างหมวดหมู่ใหม่'} width={500}>

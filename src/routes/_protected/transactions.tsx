@@ -7,7 +7,6 @@ import { TransactionList } from "@/components/transactions/TransactionList";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import page from "@/components/layout/page.module.css";
-import { listCategories } from "@/lib/api/categories";
 import {
   csvField,
   dayEndIso,
@@ -18,7 +17,8 @@ import {
   toDateKey,
   type RangeKey,
 } from "@/lib/utils/format";
-import { useExpenses } from "@/lib/hooks/use-expenses";
+import { useCategories, useExpenses } from "@/lib/hooks/use-api-queries";
+import type { ExpenseFilter } from "@/lib/api/types";
 
 const parent = getRouteApi("/_protected");
 
@@ -56,17 +56,13 @@ export const Route = createFileRoute("/_protected/transactions")({
       q: typeof search.q === "string" ? search.q : "",
     };
   },
-  loader: async () => ({ categories: await listCategories() }),
   component: Transactions,
 });
 
 function Transactions() {
   const { user } = parent.useRouteContext();
-  const { categories } = Route.useLoaderData();
   const { from, to, categoryId, sort, q } = Route.useSearch();
   const navigate = Route.useNavigate();
-
-  const [reload, setReload] = useState(0);
 
   const setFrom = (value: string) =>
     void navigate({ search: (prev) => ({ ...prev, from: value }) });
@@ -77,10 +73,15 @@ function Transactions() {
     void navigate({ search: (prev) => ({ ...prev, sort: value }) });
   const setQ = (value: string) => void navigate({ search: (prev) => ({ ...prev, q: value }) });
 
-  const { rows, loading } = useExpenses(
-    { from: dayStartIso(from), to: dayEndIso(to), categoryId: categoryId || undefined },
-    reload,
-  );
+  const expensesFilter = useMemo<ExpenseFilter>(() => ({
+    from: dayStartIso(from),
+    to: dayEndIso(to),
+    categoryId: categoryId || undefined,
+  }), [from, to, categoryId])
+  
+  const { data: categories = [] } = useCategories()
+  const { data: rows = [], isLoading, isFetching } = useExpenses(expensesFilter)
+  const loading = isLoading || isFetching
 
   const sorted = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -151,19 +152,18 @@ function Transactions() {
   };
 
   // A background import can land slips older than the filter's start; widen the
-  // window so they show, then refetch.
+  // window so they show. TanStack Query will auto-refetch when filter changes.
   useEffect(() => {
     const handler = (event: Event) => {
-      const earliest = (event as CustomEvent<{ earliestAt: string | null }>).detail?.earliestAt;
+      const earliest = (event as CustomEvent<{ earliestAt: string | null }>).detail?.earliestAt
       if (earliest) {
-        const key = toDateKey(new Date(earliest));
-        if (key < from) setFrom(key);
+        const key = toDateKey(new Date(earliest))
+        if (key < from) setFrom(key)
       }
-      setReload((n) => n + 1);
-    };
-    window.addEventListener(IMPORTED_EVENT, handler);
-    return () => window.removeEventListener(IMPORTED_EVENT, handler);
-  });
+    }
+    window.addEventListener(IMPORTED_EVENT, handler)
+    return () => window.removeEventListener(IMPORTED_EVENT, handler)
+  })
 
   const exportCsv = () => {
     const header = ["วันที่", "ชื่อรายการ", "จ่ายให้", "หมวดหมู่", "จำนวนเงิน", "ที่มา"];
@@ -288,7 +288,7 @@ function Transactions() {
           loading={loading}
           categories={categories}
           empty="ไม่พบรายจ่ายในช่วงที่เลือก"
-          onChanged={() => setReload((n) => n + 1)}
+          onChanged={() => {}}
           grouped={sort === "date-desc" || sort === "date-asc"}
         />
       </div>

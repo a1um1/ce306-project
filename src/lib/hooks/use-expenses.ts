@@ -1,24 +1,11 @@
-import { useEffect, useState } from 'react'
-import { listExpenses, type ExpenseFilter, type ExpenseRow } from '@/lib/api/expenses'
+import { useExpenses as useTanstackExpenses } from './use-api-queries'
+import type { ExpenseFilter, ExpenseRow } from '@/lib/api/expenses'
 
 export function useExpenses(filter: ExpenseFilter, reload = 0) {
-  const [rows, setRows] = useState<ExpenseRow[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let alive = true
-    setLoading(true)
-    listExpenses(filter)
-      .then((result) => {
-        if (alive) setRows(result as ExpenseRow[])
-      })
-      .finally(() => {
-        if (alive) setLoading(false)
-      })
-    return () => {
-      alive = false
-    }
-  }, [filter.from, filter.to, filter.categoryId, reload])
-
-  return { rows, loading }
+  const { data: rows = [], isLoading, isFetching } = useTanstackExpenses(filter)
+  
+  return { 
+    rows: rows as ExpenseRow[], 
+    loading: isLoading || isFetching 
+  }
 }

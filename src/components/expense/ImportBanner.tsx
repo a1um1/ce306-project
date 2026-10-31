@@ -1,6 +1,7 @@
 import { Loader2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { getImportJob, type ImportJobView } from '@/lib/api/import-jobs'
+import { useImportJob } from '@/lib/hooks/use-api-queries'
+import type { ImportJobView } from '@/lib/api/types'
 import styles from './ImportBanner.module.css'
 
 // The dialog hands the job id here through localStorage, so the banner survives
@@ -11,12 +12,11 @@ export const IMPORTED_EVENT = 'paytail:imported'
 
 export function ImportBanner() {
   const [id, setId] = useState<string | null>(null)
-  const [job, setJob] = useState<ImportJobView | null>(null)
+  const { data: job, isFetching } = useImportJob(id || '')
 
   const dismiss = () => {
     localStorage.removeItem(IMPORT_WATCH_KEY)
     setId(null)
-    setJob(null)
   }
 
   useEffect(() => {
@@ -27,45 +27,21 @@ export function ImportBanner() {
   }, [])
 
   useEffect(() => {
-    if (!id) return
-    let alive = true
-    let timer: ReturnType<typeof setTimeout>
-
-    const poll = async () => {
-      try {
-        const next = await getImportJob(id)
-        if (!alive) return
-        if (!next) return dismiss()
-        setJob(next)
-        if (next.status === 'done' || next.status === 'failed') {
-          localStorage.removeItem(IMPORT_WATCH_KEY)
-          window.dispatchEvent(new CustomEvent(IMPORTED_EVENT, { detail: { earliestAt: next.earliestAt } }))
-          timer = setTimeout(() => {
-            if (alive) {
-              setId(null)
-              setJob(null)
-            }
-          }, 8000)
-          return
-        }
-        timer = setTimeout(poll, 1500)
-      } catch {
-        timer = setTimeout(poll, 3000)
-      }
+    if (!job) return
+    if (job.status === 'done' || job.status === 'failed') {
+      localStorage.removeItem(IMPORT_WATCH_KEY)
+      window.dispatchEvent(new CustomEvent(IMPORTED_EVENT, { detail: { earliestAt: job.earliestAt } }))
+      const timer = setTimeout(() => {
+        setId(null)
+      }, 8000)
+      return () => clearTimeout(timer)
     }
-
-    setJob(null)
-    timer = setTimeout(poll, 200)
-    return () => {
-      alive = false
-      clearTimeout(timer)
-    }
-  }, [id])
+  }, [job])
 
   if (!id || !job) return null
 
   const pct = job.total > 0 ? Math.round((job.processed / job.total) * 100) : 0
-  const running = job.status === 'pending' || job.status === 'processing'
+  const running = isFetching || job.status === 'pending' || job.status === 'processing'
   const detail = [job.skipped ? `ซ้ำ ${job.skipped}` : '', job.failed ? `อ่านไม่ได้ ${job.failed}` : '']
     .filter(Boolean)
     .join(' · ')

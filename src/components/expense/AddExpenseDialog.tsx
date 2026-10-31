@@ -5,11 +5,11 @@ import type { CategoryRecord } from '@/components/category/CategoryDialog'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { createExpense } from '@/lib/api/expenses'
-import { createImportJob } from '@/lib/api/import-jobs'
+import { useCreateExpense, useCreateImportJob } from '@/lib/hooks/use-api-queries'
 import { prepareUploads } from '@/lib/utils/read-slip'
 import { IMPORT_STARTED_EVENT, IMPORT_WATCH_KEY } from './ImportBanner'
 import styles from '@/components/ui/dialogs.module.css'
+import type { ExpenseInput, UploadImage } from '@/lib/api/types'
 
 type Props = {
   open: boolean
@@ -36,9 +36,13 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
   const [progress, setProgress] = useState({ done: 0, total: 0 })
   const [dragging, setDragging] = useState(false)
 
-  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  
+  const createExpenseMutation = useCreateExpense()
+  const createImportJobMutation = useCreateImportJob()
+  
+  const busy = phase !== 'pick' || createExpenseMutation.isPending || createImportJobMutation.isPending
 
   // New transactions start on the first category instead of none.
   const defaultCategoryId = categories[0]?.id ?? null
@@ -82,13 +86,13 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
     try {
       const prepared = await prepareUploads(images, (done, total) => setProgress({ done, total }))
       setPhase('saving')
-      const { id } = await createImportJob(prepared)
-      if (!id) {
+      const result = await createImportJobMutation.mutateAsync(prepared as UploadImage[])
+      if (!result.id) {
         setError('ไม่พบรูปที่อ่านได้ ลองอีกครั้ง')
         setPhase('pick')
         return
       }
-      localStorage.setItem(IMPORT_WATCH_KEY, id)
+      localStorage.setItem(IMPORT_WATCH_KEY, result.id)
       window.dispatchEvent(new Event(IMPORT_STARTED_EVENT))
       onOpenChange(false)
     } catch (cause) {
@@ -113,10 +117,9 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
     const value = Number(amount)
     if (!title.trim()) return setError('ใส่ชื่อรายการก่อน')
     if (!value || value <= 0) return setError('ใส่จำนวนเงินก่อน')
-    setBusy(true)
     setError(null)
     try {
-      await createExpense({
+      const input: ExpenseInput = {
         title: title.trim(),
         payee: payee.trim() || null,
         amount: value,
@@ -124,13 +127,12 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
         categoryId: manualCategory,
         source: 'manual',
         qrPayload: null,
-      })
+      }
+      await createExpenseMutation.mutateAsync(input)
       onSaved()
       onOpenChange(false)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'บันทึกไม่สำเร็จ ลองอีกครั้ง')
-    } finally {
-      setBusy(false)
     }
   }
 
