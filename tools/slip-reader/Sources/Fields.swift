@@ -16,31 +16,29 @@ enum SlipError: LocalizedError {
 }
 
 let instructions = """
-You read Thai bank transfer slips. The input is OCR text from one slip, top to bottom.
-Extract only what the text shows; never invent or complete a value.
-Amounts are in THB: the transferred amount, not the fee.
-A slip has a sender block right after the date/time and a recipient block right before the
-"เลขที่รายการ:" line. Each block is the name line, then that party's bank, account and code lines.
-The name is the first line of the block; a bank name (e.g. ธ.กสิกรไทย) or an account number is
-never a name, and the recipient is never a bank. On top-up slips a trailing "รายละเอียด:" line holds
-the recipient name; use it when the recipient block only shows a wallet or channel.
+You read Thai bank transfer and donation slips. The input is OCR text from one slip,
+top to bottom. Extract only values that are printed in the text. If a value is not
+printed, return an empty string (or 0 for the amount); never guess, and never reuse
+values from these instructions.
 
-Example OCR text:
-จ่ายบิลสำเร็จ
-10 ก.ย. 69 09:24 น.
-นาย ก
-ธ.กสิกรไทย
-xxx-x-x3641-x
-THE PIZZA COMPANY
-THEPIZZACOMPANY
-68YTJW08CFA8BVW9XYR
-เลขที่รายการ:
-016253092413CPM01291
-จำนวน:
-198.00 บาท
-ค่าธรรมเนียม:
-0.00 บาท
-Here the sender is "นาย ก" and the recipient is "THE PIZZA COMPANY"; "ธ.กสิกรไทย" is the sender's bank.
+- amount: the transferred amount in THB, not the fee.
+- dateText: the date and time exactly as printed. Do not convert the era or format.
+- transactionId: the transfer reference printed on the slip. Thai labels are
+  "เลขที่รายการ:", "เลขที่อ้างอิง", "รหัสอ้างอิง", "Ref", "Reference". Take the value
+  that belongs to one of those labels, usually the longest alphanumeric string.
+  Never use a Biller ID, "รหัสอ้างอิงหน่วยรับบริจาค", a tax id, a phone number, or an
+  account number.
+- sender: the person or company who paid. It is beside "จาก" / "ผู้โอน", or in the
+  block above the sender's bank. Never take a bank name, an app name, a slip title,
+  or an amount.
+- recipient: the person or company who received the money. It is beside "ไปที่" /
+  "ไปยัง" / "ผู้รับ", or in the last name block before the reference. Return the name
+  only: drop account numbers, Biller IDs and anything in brackets.
+
+Bank names and channels look like ธ.กสิกรไทย, กรุงไทย, Krungthai, Bangkok Bank, ttb,
+ธ.ก.ส., BAAC, พร้อมเพย์. They are never a person's name.
+A donation slip often shows two id numbers: the foundation/biller id near "Biller ID"
+or "รหัสอ้างอิงหน่วยรับบริจาค" (e.g. 0993000273940) is not the transaction reference.
 """
 
 // The fields the model is allowed to produce, described for it in the schema.
@@ -54,19 +52,37 @@ private func slipSchema() throws -> GenerationSchema {
             name: "Slip",
             description: "Fields read from one Thai bank transfer slip.",
             properties: [
-                text("transactionId", "Reference printed on the slip, e.g. 016253092413CPM01291."),
-                text("dateText", "Date and time line converted to standard iso date time format"),
+                text("transactionId", "Transfer reference from เลขที่รายการ, เลขที่อ้างอิง or รหัสอ้างอิง. Empty when absent; never a Biller ID, tax id or account number."),
+                text("dateText", "Date and time exactly as printed, e.g. 10 ก.ย. 69 09:24 น. Do not convert."),
                 .init(
                     name: "amount",
-                    description: "Transferred amount in THB, not the fee.",
+                    description: "Transferred amount in THB, not the fee. 0 when not printed.",
                     schema: .init(type: Double.self)
                 ),
-                text("sender", "Sender name, the first line of the sender block."),
-                text("recipient", "Recipient name; a bank name or account number is never the recipient."),
+                text("sender", "Payer name only; never a bank name, app name, slip title or amount."),
+                text("recipient", "Payee name only; never a bank name, Biller ID, account number or bracketed code."),
             ]
         ),
         dependencies: []
     )
+}
+
+@Generable
+struct Slip {
+    @Guide(description: "Transfer reference from เลขที่รายการ, เลขที่อ้างอิง or รหัสอ้างอิง. Empty when absent; never a Biller ID, tax id or account number.")
+    var transactionId: String
+
+    @Guide(description:  "Date and time exactly as printed, e.g. 10 ก.ย. 69 09:24 น. Do not convert.")
+    var dateText: String
+
+    @Guide(description: "Transferred amount in THB, not the fee. 0 when not printed.")
+    var amount: String
+
+		@Guide(description: "Payer name only; never a bank name, app name, slip title or amount.")
+		var sender: String
+
+		@Guide(description: "Payee name only; never a bank name, Biller ID, account number or bracketed code.")
+		var recipient: String
 }
 
 
@@ -80,28 +96,33 @@ private func matches(_ text: String, _ pattern: String) -> [String]? {
 }
 
 func extract(file: String, obs: [Obs], session: LanguageModelSession) async throws -> [String: Any] {
-    let ocrText = obs.sorted { $0.box.midY > $1.box.midY }.map(\.text).joined(separator: "\n")
+    let ocrText = obs.map(\.text).joined(separator: "\n")
     guard !ocrText.isEmpty else { throw SlipError.noText }
 
     let options = GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 120)
     let slip = try await session.respond(
         to: "OCR text:\n\(ocrText)",
-        schema: try slipSchema(),
+				generating: Slip.self,
         options: options
     ).content
 
-    let id = try slip.value(String.self, forProperty: "transactionId")
-    let dateText = try slip.value(String.self, forProperty: "dateText")
-    let amount = try slip.value(Double.self, forProperty: "amount")
-    let sender = try slip.value(String.self, forProperty: "sender")
-    let recipient = try slip.value(String.self, forProperty: "recipient")
+    let id = slip.transactionId
+		let dateText = slip.dateText
+		let amount = slip.amount
+		let sender = slip.sender
+		let recipient = slip.recipient
 	
+		let amountValue = Double(
+			amount.replacingOccurrences(of: ",", with: "")
+						.trimmingCharacters(in: .whitespaces)
+	) ?? 0
+
     return [
         "file": (file as NSString).lastPathComponent,
 				"raw": ocrText,
         "transactionId": id,
         "dateTime": dateText,
-        "amount": max(0, amount),
+        "amount": max(0, amountValue),
         "currency": "THB",
         "sender": ["name": sender] as [String: Any],
         "recipient": ["name": recipient] as [String: Any],

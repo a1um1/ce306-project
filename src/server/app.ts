@@ -5,6 +5,7 @@ import { auth } from '@/lib/auth'
 import { categoryRoutes } from './routes/categories'
 import { expenseRoutes } from './routes/expenses'
 import { importJobRoutes } from './routes/import-jobs'
+import { labelRoutes } from './routes/label'
 import { sessionRoutes } from './routes/session'
 import { slipRoutes } from './routes/slips'
 
@@ -27,6 +28,7 @@ app.route('/api/expenses', expenseRoutes)
 app.route('/api/categories', categoryRoutes)
 app.route('/api/import-jobs', importJobRoutes)
 app.route('/api/slips', slipRoutes)
+app.route('/api/label', labelRoutes)
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404))
 

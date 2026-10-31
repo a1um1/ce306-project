@@ -95,9 +95,10 @@ model call), `main.swift` (CLI). The model generates against a runtime
 `GenerationSchema`, so it can only return the slip fields; `@Generable` structs
 need the macro plugin that ships with full Xcode. Requires macOS 26+ with Apple
 Intelligence enabled.
-Dates are the one mechanical step: the model copies the printed date line and
-`Fields.swift` converts the Buddhist-era year, because asking the model to do that
-arithmetic misread times in testing.
+Dates and reference numbers are the mechanical steps: the model copies the printed
+date line and `date.ts` converts the Buddhist-era year, because asking the model to
+do that arithmetic misread times in testing. `fields.ts` picks `transactionId` from
+the reference label in the OCR text, so a Biller ID or account number is not chosen.
 
 ### OCR service
 
@@ -121,3 +122,36 @@ Nothing in the web app calls this directly: the API owns it. Set
 `SLIP_READER_URL=http://127.0.0.1:4100` for the API to use the service; leave it
 empty to run the binary in-process (the default).
 
+
+### Labeling (training data)
+
+`/label` (signed in) is a workbench over `tools/slip-reader/data`: it lists the
+slips, runs the current reader, and lets you correct `amount`, `dateTime`,
+`transactionId`, `sender` and `recipient`. Each saved slip is upserted into
+`tools/slip-reader/training/labels.jsonl`:
+
+```json
+{"path":"kbank/slip.jpeg","ocrText":"...","predicted":{...},"label":{...},"updatedAt":"..."}
+```
+
+`ocrText` is the OCR input, `predicted` is what the current implementation said,
+`label` is the human-corrected target. New photos can be uploaded from the page;
+they land in `tools/slip-reader/data/uploads/`.
+
+Set `SLIP_SAVE_READS=1` to keep every read the importer would accept, from both
+the import flow and the reader test page: the image is copied to `data/imports/`
+(content-addressed by a SHA-1 of the bytes) and saved to the same JSONL with
+`predicted` and `label` equal, because nothing edited the values. The acceptance
+gate only checks amount and reference, so a wrong date or name can still enter
+the dataset; correct it in `/label` if `pnpm slips:eval` shows drift. Off by
+default because it stores user photos.
+
+Measure the current implementation against those labels with:
+
+```bash
+pnpm slips:eval
+```
+
+It re-reads every labeled slip and prints per-field accuracy plus each mismatch.
+Low-resolution images (under ~500px wide) cannot be read reliably; those OCR
+errors are not fixable by the model.

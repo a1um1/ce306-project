@@ -86,4 +86,6 @@ export type SlipRead = {
   transactionId: string
   title: string
   recipient: string
+  sender: string
+  ocrText: string
 }

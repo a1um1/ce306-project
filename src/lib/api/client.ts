@@ -32,10 +32,16 @@ export class ApiError extends Error {
   }
 }
 
+export function apiUrl(path: string): string {
+  return `${apiBase()}${path}`
+}
+
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = await forwardedHeaders()
   new Headers(init.headers).forEach((value, key) => headers.set(key, value))
-  if (init.body && !headers.has('content-type')) headers.set('content-type', 'application/json')
+  if (init.body && !(init.body instanceof FormData) && !headers.has('content-type')) {
+    headers.set('content-type', 'application/json')
+  }
 
   const response = await fetch(`${apiBase()}${path}`, {
     ...init,

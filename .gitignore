@@ -7,5 +7,6 @@ node_modules
 tools/slip-reader/bin
 tools/slip-reader/data
 tools/slip-reader/highlight
+tools/slip-reader/training
 .DS_Store
 .data
