@@ -1,0 +1,72 @@
+.logo {
+  text-decoration: none;
+  color: var(--text);
+}
+
+.horizontal {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.vertical {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+
+.logoMark {
+  background: var(--primary);
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  position: relative;
+}
+
+.logoImg {
+  display: block;
+  transform: rotate(-10deg);
+}
+
+.logoText {
+  margin: 0;
+  color: var(--text);
+  line-height: 1;
+}
+
+/* Sizes */
+.sm .logoMark {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+}
+
+.sm .logoText {
+  font-size: 32px;
+  font-weight: 500;
+}
+
+.md .logoMark {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+}
+
+.md .logoText {
+  font-size: 36px;
+  font-weight: 600;
+}
+
+.lg .logoMark {
+  width: 89px;
+  height: 89px;
+  border-radius: 19px;
+}
+
+.lg .logoText {
+  font-size: 40px;
+  font-weight: 700;
+}

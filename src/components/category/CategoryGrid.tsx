@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { CategoryIcon } from '@/components/category/CategoryIcon'
 import type { CategoryRecord } from '@/components/category/CategoryDialog'
 import { CATEGORY_COLORS } from '@/lib/utils/design'
+import { Button } from '@/components/ui/Button'
 import ui from '@/components/ui/ui.module.css'
 import styles from '@/components/ui/dialogs.module.css'
 
@@ -48,9 +49,9 @@ export function CategoryGrid({ categories, selected, onSelect, onNewCategory }: 
       <div className={styles.categoryHeader}>
         <span className={ui.label}>เลือกหมวดหมู่</span>
         {onNewCategory ? (
-          <button type="button" className={ui.small} onClick={onNewCategory}>
+          <Button variant="secondary" size="sm" onClick={onNewCategory}>
             สร้างใหม่
-          </button>
+          </Button>
         ) : null}
       </div>
 

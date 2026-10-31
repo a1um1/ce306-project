@@ -3,11 +3,12 @@ import { useEffect, useRef, useState } from 'react'
 import { CategoryGrid } from '@/components/category/CategoryGrid'
 import type { CategoryRecord } from '@/components/category/CategoryDialog'
 import { Modal } from '@/components/ui/Modal'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import { createExpense } from '@/lib/api/expenses'
 import { createImportJob } from '@/lib/api/import-jobs'
 import { prepareUploads } from '@/lib/utils/read-slip'
 import { IMPORT_STARTED_EVENT, IMPORT_WATCH_KEY } from './ImportBanner'
-import ui from '@/components/ui/ui.module.css'
 import styles from '@/components/ui/dialogs.module.css'
 
 type Props = {
@@ -216,42 +217,32 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
           </div>
           <div className={styles.quickRow}>
             {QUICK_ADD.map((n) => (
-              <button
+              <Button
                 key={n}
-                type="button"
-                className={ui.small}
+                variant="secondary"
+                size="sm"
                 onClick={() => setAmount(String((Number(amount) || 0) + n))}
               >
                 +{n}
-              </button>
+              </Button>
             ))}
           </div>
 
-          <div className={ui.inputGroup}>
-            <label className={ui.label} htmlFor="expense-title">
-              ชื่อรายการ
-            </label>
-            <input
-              id="expense-title"
-              className={ui.input}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="ค่ารถ ค่า BTS ค่ากิน"
-            />
-          </div>
+          <Input
+            id="expense-title"
+            label="ชื่อรายการ"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="ค่ารถ ค่า BTS ค่ากิน"
+          />
 
-          <div className={ui.inputGroup}>
-            <label className={ui.label} htmlFor="expense-payee">
-              จ่ายให้
-            </label>
-            <input
-              id="expense-payee"
-              className={ui.input}
-              value={payee}
-              onChange={(e) => setPayee(e.target.value)}
-              placeholder="แม่ พ่อ 7-11"
-            />
-          </div>
+          <Input
+            id="expense-payee"
+            label="จ่ายให้"
+            value={payee}
+            onChange={(e) => setPayee(e.target.value)}
+            placeholder="แม่ พ่อ 7-11"
+          />
 
           <CategoryGrid
             categories={categories}
@@ -262,9 +253,9 @@ export function AddExpenseDialog({ open, onOpenChange, categories, onSaved, onNe
 
           {error ? <p className={styles.error}>{error}</p> : null}
 
-          <button type="button" className={ui.primary} onClick={submitManual} disabled={busy}>
+          <Button fullWidth size="lg" onClick={submitManual} disabled={busy}>
             {busy ? 'กำลังบันทึก…' : 'จดรายจ่าย'}
-          </button>
+          </Button>
         </>
       )}
 

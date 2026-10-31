@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import type { CategoryRecord } from '@/components/category/CategoryDialog'
 import { CategoryGrid } from '@/components/category/CategoryGrid'
 import { Modal } from '@/components/ui/Modal'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import { updateExpense, type ExpenseRow } from '@/lib/api/expenses'
-import ui from '@/components/ui/ui.module.css'
 import styles from '@/components/ui/dialogs.module.css'
 
 type Props = {
@@ -66,39 +67,29 @@ export function EditExpenseDialog({ open, item, categories, onOpenChange, onSave
         />
       </div>
 
-      <div className={ui.inputGroup}>
-        <label className={ui.label} htmlFor="edit-expense-title">
-          ชื่อรายการ
-        </label>
-        <input
-          id="edit-expense-title"
-          className={ui.input}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="ค่ารถ ค่า BTS ค่ากิน"
-        />
-      </div>
+      <Input
+        id="edit-expense-title"
+        label="ชื่อรายการ"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="ค่ารถ ค่า BTS ค่ากิน"
+      />
 
-      <div className={ui.inputGroup}>
-        <label className={ui.label} htmlFor="edit-expense-payee">
-          จ่ายให้
-        </label>
-        <input
-          id="edit-expense-payee"
-          className={ui.input}
-          value={payee}
-          onChange={(e) => setPayee(e.target.value)}
-          placeholder="แม่ พ่อ 7-11"
-        />
-      </div>
+      <Input
+        id="edit-expense-payee"
+        label="จ่ายให้"
+        value={payee}
+        onChange={(e) => setPayee(e.target.value)}
+        placeholder="แม่ พ่อ 7-11"
+      />
 
       <CategoryGrid categories={categories} selected={categoryId} onSelect={setCategoryId} />
 
       {error ? <p className={styles.error}>{error}</p> : null}
 
-      <button type="button" className={ui.primary} onClick={submit} disabled={busy}>
+      <Button fullWidth size="lg" onClick={submit} disabled={busy}>
         {busy ? 'กำลังบันทึก…' : 'บันทึกการแก้ไข'}
-      </button>
+      </Button>
     </Modal>
   )
 }

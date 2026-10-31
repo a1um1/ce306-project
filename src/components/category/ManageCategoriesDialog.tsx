@@ -1,5 +1,6 @@
 import { CategoryIcon } from "./CategoryIcon";
 import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
 import type { CategoryRecord } from "./CategoryDialog";
 import ui from "@/components/ui/ui.module.css";
 import styles from "@/components/ui/dialogs.module.css";
@@ -24,17 +25,17 @@ export function ManageCategoriesDialog({ open, onOpenChange, categories, onEdit,
           <div key={c.id} className={styles.catListItem}>
             <CategoryIcon icon={c.icon} color={c.color} size={40} />
             <span className={styles.catListName}>{c.name}</span>
-            <button type="button" className={ui.small} onClick={() => onEdit(c)}>
+            <Button variant="secondary" size="sm" onClick={() => onEdit(c)}>
               แก้ไข
-            </button>
+            </Button>
           </div>
         ))}
         {mine.length === 0 ? <span className={styles.emptyHint}>ยังไม่มีหมวดหมู่ที่คุณสร้าง</span> : null}
       </div>
 
-      <button type="button" className={ui.primary} onClick={onNew}>
+      <Button fullWidth size="lg" onClick={onNew}>
         สร้างใหม่
-      </button>
+      </Button>
 
       <span className={ui.label}>หมวดหมู่พื้นฐาน</span>
       <div className={styles.categoryGrid}>

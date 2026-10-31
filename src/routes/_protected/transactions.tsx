@@ -4,6 +4,8 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { IMPORTED_EVENT } from "@/components/expense/ImportBanner";
 import { RangePicker } from "@/components/summary/RangePicker";
 import { TransactionList } from "@/components/transactions/TransactionList";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import page from "@/components/layout/page.module.css";
 import { listCategories } from "@/lib/api/categories";
 import {
@@ -199,36 +201,34 @@ function Transactions() {
             <span className={page.totalLabel}>
               รวม {formatAmount(total)}฿ · {sorted.length} รายการ
             </span>
-            <button
-              type="button"
-              className={page.exportButton}
+            <Button
+              size="md"
               onClick={exportCsv}
               disabled={sorted.length === 0}
+              className={page.exportButton}
             >
               Export CSV
-            </button>
+            </Button>
           </div>
         </div>
 
         <div className={page.filters}>
-          <label className={page.field}>
-            <span className={page.fieldLabel}>จากวันที่</span>
-            <input
-              className={page.fieldInput}
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-            />
-          </label>
-          <label className={page.field}>
-            <span className={page.fieldLabel}>ถึงวันที่</span>
-            <input
-              className={page.fieldInput}
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-            />
-          </label>
+          <Input
+            size="md"
+            label="จากวันที่"
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+            containerClassName={page.field}
+          />
+          <Input
+            size="md"
+            label="ถึงวันที่"
+            type="date"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            containerClassName={page.field}
+          />
           <div className={page.quickRow}>
             <span className={page.fieldLabel}>ช่วงด่วน</span>
             <RangePicker
@@ -239,16 +239,15 @@ function Transactions() {
               onYearChange={applyYear}
             />
           </div>
-          <label className={page.field}>
-            <span className={page.fieldLabel}>ค้นหา</span>
-            <input
-              className={page.fieldInput}
-              type="search"
-              placeholder="ชื่อ / ผู้รับเงิน"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-          </label>
+          <Input
+            size="md"
+            label="ค้นหา"
+            type="search"
+            placeholder="ชื่อ / ผู้รับเงิน"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            containerClassName={page.field}
+          />
           <label className={page.field}>
             <span className={page.fieldLabel}>หมวดหมู่</span>
             <select
@@ -279,9 +278,9 @@ function Transactions() {
               ))}
             </select>
           </label>
-          <button type="button" className={page.resetButton} onClick={resetFilters}>
+          <Button variant="secondary" size="sm" onClick={resetFilters}>
             ล้างตัวกรอง
-          </button>
+          </Button>
         </div>
 
         <TransactionList

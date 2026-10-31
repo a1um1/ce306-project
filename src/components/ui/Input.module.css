@@ -1,0 +1,96 @@
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.label {
+  font-family: inherit;
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+.input {
+  font-family: inherit;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 5px;
+  transition: border-color 0.15s ease, outline-color 0.15s ease;
+}
+
+.input::placeholder {
+  color: var(--border);
+  font-weight: 500;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Sizes */
+.sm .label,
+.labelSm {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.sm .input,
+.inputSm {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 14px;
+}
+
+.md .label,
+.labelMd {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.md .input,
+.inputMd {
+  padding: 10px 14px;
+  border: 2px solid var(--border);
+  border-radius: 5px;
+  font-size: 15px;
+}
+
+.lg .label,
+.labelLg {
+  font-size: 16px;
+  color: var(--text);
+}
+
+.lg .input,
+.inputLg {
+  min-width: 100px;
+  padding: 15px 25px;
+  border: 2px solid var(--border);
+  border-radius: 5px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+/* Error */
+.hasError .input {
+  border-color: #d92d20;
+}
+
+.errorText {
+  margin: 0;
+  color: #d92d20;
+  font-size: 13px;
+}

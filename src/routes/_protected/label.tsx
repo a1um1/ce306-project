@@ -1,5 +1,8 @@
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { Input } from "@/components/ui/Input";
 import {
   listSlips,
   runSlips,
@@ -206,13 +209,14 @@ function LabelPage() {
           </p>
         </div>
         <div className={styles.actions}>
-          <Link
+          <ButtonLink
             to="/"
             search={{ range: "today", year: new Date().getFullYear() }}
-            className={styles.button}
+            variant="secondary"
+            size="sm"
           >
             หน้าหลัก
-          </Link>
+          </ButtonLink>
           <label className={busy ? styles.uploadDisabled : styles.upload}>
             เพิ่มสลิป
             <input
@@ -228,32 +232,32 @@ function LabelPage() {
               }}
             />
           </label>
-          <button
-            type="button"
-            className={styles.button}
+          <Button
+            variant="secondary"
+            size="sm"
             disabled={Boolean(busy) || missing === 0}
             onClick={() => void run(rows.filter((row) => !row.ocrText).map((row) => row.path))}
           >
             {busy === "run" && progress
               ? `กำลังอ่าน ${progress[0]}/${progress[1]}`
               : `อ่านที่ยังไม่มี (${missing})`}
-          </button>
-          <button
-            type="button"
-            className={styles.button}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             disabled={Boolean(busy) || rows.length === 0}
             onClick={() => void run(rows.map((row) => row.path))}
           >
             อ่านใหม่ทั้งหมด
-          </button>
-          <button
-            type="button"
-            className={styles.primary}
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
             disabled={Boolean(busy) || todoCount === 0}
             onClick={() => void persist(rows.filter(needsSave))}
           >
             บันทึก ({todoCount})
-          </button>
+          </Button>
         </div>
       </header>
 
@@ -319,10 +323,10 @@ function LabelPage() {
                 >
                   <div className={styles.form}>
                     {FIELDS.map((field) => (
-                      <label key={field.key} className={styles.field}>
-                        <span className={styles.fieldLabel}>{field.label}</span>
-                        <input
-                          className={styles.input}
+                      <div key={field.key} className={styles.field}>
+                        <Input
+                          size="sm"
+                          label={field.label}
                           value={current.label[field.key]}
                           onChange={(event) => edit(field.key, event.target.value)}
                           inputMode={field.key === "amount" ? "decimal" : undefined}
@@ -333,7 +337,7 @@ function LabelPage() {
                             AI: {current.predicted[field.key] || "—"}
                           </span>
                         ) : null}
-                      </label>
+                      </div>
                     ))}
                   </div>
 
@@ -345,23 +349,23 @@ function LabelPage() {
               </div>
 
               <div className={styles.footer}>
-                <button
-                  type="button"
-                  className={styles.button}
+                <Button
+                  variant="secondary"
+                  size="sm"
                   disabled={Boolean(busy)}
                   onClick={() => void run([current.path])}
                 >
                   อ่านใหม่
-                </button>
+                </Button>
                 <span className={styles.file}>{current.path}</span>
-                <button
-                  type="button"
-                  className={styles.primary}
+                <Button
+                  variant="primary"
+                  size="sm"
                   disabled={Boolean(busy)}
                   onClick={() => void saveAndNext()}
                 >
                   บันทึก + ถัดไป
-                </button>
+                </Button>
               </div>
             </>
           ) : (

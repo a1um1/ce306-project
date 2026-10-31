@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { CategoryIcon } from './CategoryIcon'
 import { Modal } from '@/components/ui/Modal'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import { CATEGORY_COLORS, CATEGORY_ICONS, ICON_COMPONENT, ICON_LABEL } from '@/lib/utils/design'
 import { createCategory, updateCategory } from '@/lib/api/categories'
 import ui from '@/components/ui/ui.module.css'
@@ -76,21 +78,16 @@ export function CategoryDialog({ open, onOpenChange, initial, existingCount, onS
         <div className={styles.iconPreview}>
           <CategoryIcon icon={icon} color={color} />
         </div>
-        <div className={ui.inputGroup}>
-          <label className={ui.label} htmlFor="category-name">
-            ชื่อ
-          </label>
-          <input
-            id="category-name"
-            className={ui.input}
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value)
-              setNameEdited(true)
-            }}
-            placeholder="อาหาร ค่ารถ ของใช้"
-          />
-        </div>
+        <Input
+          id="category-name"
+          label="ชื่อ"
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value)
+            setNameEdited(true)
+          }}
+          placeholder="อาหาร ค่ารถ ของใช้"
+        />
       </div>
 
       <div className={styles.iconPicker}>
@@ -129,9 +126,9 @@ export function CategoryDialog({ open, onOpenChange, initial, existingCount, onS
 
       {error ? <p className={styles.error}>{error}</p> : null}
 
-      <button type="button" className={ui.primary} onClick={submit} disabled={busy}>
+      <Button fullWidth size="lg" onClick={submit} disabled={busy}>
         {busy ? 'กำลังบันทึก…' : 'บันทึก'}
-      </button>
+      </Button>
     </Modal>
   )
 }

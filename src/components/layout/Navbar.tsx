@@ -2,6 +2,7 @@ import { Menu } from "@base-ui/react/menu";
 import { ChevronDown } from "lucide-react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { authClient } from "@/lib/auth-client";
+import { Logo } from "@/components/ui/Logo";
 import styles from "./Navbar.module.css";
 
 type Props = {
@@ -27,16 +28,7 @@ export function Navbar({ user, onManageCategories }: Props) {
         }}
         className={styles.logoLong}
       >
-        <span className={styles.logoMark}>
-          <img
-            src="/assets/logo-slip.svg"
-            alt=""
-            width={34}
-            height={34}
-            className={styles.logoImg}
-          />
-        </span>
-        <span className={styles.logoText}>PayTail</span>
+        <Logo size="sm" />
       </Link>
 
       <Menu.Root>

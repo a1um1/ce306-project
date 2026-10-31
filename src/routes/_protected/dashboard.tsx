@@ -1,4 +1,4 @@
-import { createFileRoute, getRouteApi, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, getRouteApi, useRouter } from "@tanstack/react-router";
 import { Pen } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AddExpenseDialog } from "@/components/expense/AddExpenseDialog";
@@ -6,6 +6,8 @@ import { IMPORTED_EVENT } from "@/components/expense/ImportBanner";
 import { CategoryDialog } from "@/components/category/CategoryDialog";
 import { Summarize } from "@/components/summary/Summarize";
 import { TransactionList } from "@/components/transactions/TransactionList";
+import { Button } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/ButtonLink";
 import page from "@/components/layout/page.module.css";
 import { listCategories } from "@/lib/api/categories";
 import {
@@ -111,10 +113,10 @@ function Dashboard() {
         <div className={page.headerRow}>
           <h2 className={page.listTitle}>ประวัติธรุกรรม</h2>
           <div className={page.actions}>
-            <button type="button" className={page.addButton} onClick={() => setAddOpen(true)}>
+            <Button size="md" onClick={() => setAddOpen(true)}>
               <Pen size={24} strokeWidth={2} />
               จดเพิ่ม
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -128,7 +130,7 @@ function Dashboard() {
         />
 
         {hidden > 0 ? (
-          <Link
+          <ButtonLink
             to="/transactions"
             search={{
               from: toDateKey(new Date(bounds.from)),
@@ -137,10 +139,12 @@ function Dashboard() {
               sort: "date-desc",
               q: "",
             }}
+            variant="secondary"
+            size="md"
             className={page.viewAllButton}
           >
             ดูทั้งหมด {rows.length} รายการ
-          </Link>
+          </ButtonLink>
         ) : null}
       </div>
 
