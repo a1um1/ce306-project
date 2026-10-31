@@ -1,4 +1,5 @@
 import { AppHeader } from "@/components/layout/AppHeader";
+import { ImportBanner } from "@/components/expense/ImportBanner";
 import { getSession } from "@/lib/api/session";
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 
@@ -16,6 +17,7 @@ function RouteComponent() {
     <>
       <AppHeader />
       <Outlet />
+      <ImportBanner />
     </>
   );
 }

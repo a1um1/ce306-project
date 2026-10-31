@@ -18,26 +18,27 @@ enum SlipError: LocalizedError {
 let instructions = """
 Extract fields from OCR text of one bank transfer slip (Thai or English).
 Copy values exactly as printed. Return "" (or 0 for amount) if absent; never guess.
-Sender and recipient appear as: name, then bank, then masked account; sender first.
+Two names appear on the slip. The upper name is the sender (payer). The lower name is the recipient (payee).
+If "จาก"/"From" or "ไปที่"/"ไปยัง"/"To" labels are printed, they override the position.
+Each name is usually followed by a bank name and a masked account number; those are never part of the name.
 A bank, app name, Biller ID or account number is never a name.
 Transaction ID is the unique transfer reference, never a Biller ID or tax id.
 Dates: output ISO 8601 with +07:00, like 2026-05-26T18:01:00+07:00.
 Convert 12-hour AM/PM to 24-hour. A 2-digit year is 20xx (26 = 2026).
-Thai Buddhist years (พ.ศ.) subtract 543: 2569 = 2026, and a 2-digit Thai year 69 = 2569 = 2026.
-Thai months: ม.ค.=01 ก.พ.=02 มี.ค.=03 เม.ย.=04 พ.ค.=05 มิ.ย.=06 ก.ค.=07 ส.ค.=08 ก.ย.=09 ต.ค.=10 พ.ย.=11 ธ.ค.=12.
+Thai Buddhist years (พ.ศ.) subtract 543: 2569 = 2026.
 """
 
 @Generable
 struct Slip {
     @Guide(description: "Transfer reference (Transaction ID, เลขที่รายการ, Ref)")
     var transactionId: String
-    @Guide(description: "Date and time as ISO 8601 with +07:00, e.g. 2026-05-26T18:01:00+07:00. Empty if absent")
+    @Guide(description: "Date and time as ISO 8601 with +07:00. Empty if absent")
     var dateText: String
-    @Guide(description: "Transferred amount number (Amount, จำนวนเงิน). Ignore Fee. 0 if absent")
+    @Guide(description: "Transferred amount in THB (Amount, จำนวนเงิน). Ignore Fee. 0 if absent")
     var amount: String
-    @Guide(description: "Payer name only")
+    @Guide(description: "Payer: the FIRST (upper) name on the slip. Name only")
     var sender: String
-    @Guide(description: "Payee name only")
+    @Guide(description: "Payee: the SECOND (lower) name on the slip. Name only")
     var recipient: String
 }
 

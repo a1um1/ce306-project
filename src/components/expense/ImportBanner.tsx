@@ -1,7 +1,7 @@
 import { Loader2, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { useImportJob } from '@/lib/hooks/use-api-queries'
-import type { ImportJobView } from '@/lib/api/types'
+import { useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { queryKeys, useImportJob } from '@/lib/hooks/use-api-queries'
 import styles from './ImportBanner.module.css'
 
 // The dialog hands the job id here through localStorage, so the banner survives
@@ -11,8 +11,10 @@ export const IMPORT_STARTED_EVENT = 'paytail:import-started'
 export const IMPORTED_EVENT = 'paytail:imported'
 
 export function ImportBanner() {
+  const queryClient = useQueryClient()
   const [id, setId] = useState<string | null>(null)
   const { data: job, isFetching } = useImportJob(id || '')
+  const completedRef = useRef<string | null>(null)
 
   const dismiss = () => {
     localStorage.removeItem(IMPORT_WATCH_KEY)
@@ -26,17 +28,26 @@ export function ImportBanner() {
     return () => window.removeEventListener(IMPORT_STARTED_EVENT, read)
   }, [])
 
+  // If the server returns null for the job ID (e.g. job deleted or expired), dismiss it
+  useEffect(() => {
+    if (!isFetching && job === null && id) {
+      dismiss()
+    }
+  }, [job, isFetching, id])
+
   useEffect(() => {
     if (!job) return
-    if (job.status === 'done' || job.status === 'failed') {
+    if ((job.status === 'done' || job.status === 'failed') && completedRef.current !== job.id) {
+      completedRef.current = job.id
       localStorage.removeItem(IMPORT_WATCH_KEY)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.expenses })
       window.dispatchEvent(new CustomEvent(IMPORTED_EVENT, { detail: { earliestAt: job.earliestAt } }))
       const timer = setTimeout(() => {
         setId(null)
       }, 8000)
       return () => clearTimeout(timer)
     }
-  }, [job])
+  }, [job, queryClient])
 
   if (!id || !job) return null
 

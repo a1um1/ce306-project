@@ -17,7 +17,8 @@ import {
   type RangeKey,
 } from "@/lib/utils/format";
 import { buildBreakdown } from "@/lib/utils/summary";
-import { useCategories, useExpenses } from "@/lib/hooks/use-api-queries";
+import { useCategories, useExpenses, queryKeys } from "@/lib/hooks/use-api-queries";
+import { useQueryClient } from "@tanstack/react-query";
 import type { ExpenseFilter } from "@/lib/api/types";
 
 const PREVIEW_COUNT = 10;
@@ -38,6 +39,7 @@ export const Route = createFileRoute("/_protected/dashboard")({
 });
 
 function Dashboard() {
+  const queryClient = useQueryClient();
   const { range, year } = Route.useSearch();
   const navigate = Route.useNavigate();
   const router = useRouter();
@@ -83,6 +85,7 @@ function Dashboard() {
   const loading = isLoading || isFetching
 
   const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.expenses })
     void router.invalidate()
   }
 

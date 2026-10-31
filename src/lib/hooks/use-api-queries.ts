@@ -19,8 +19,9 @@ import type { UploadImage } from '@/lib/api/types'
 export const queryKeys = {
   categories: ['categories'] as const,
   category: (id: string) => ['categories', id] as const,
-  expenses: (filter: ExpenseFilter) => ['expenses', filter] as const,
-  expense: (id: string) => ['expenses', id] as const,
+  expenses: ['expenses'] as const,
+  expensesList: (filter: ExpenseFilter) => ['expenses', filter] as const,
+  expense: (id: string) => ['expenses', 'detail', id] as const,
   session: ['session'] as const,
   importJob: (id: string) => ['import-jobs', id] as const,
   importedExternalIds: ['imported-external-ids'] as const,
@@ -66,7 +67,7 @@ export function useUpdateCategory() {
   
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: CategoryInput }) => updateCategory(id, input),
-    onSuccess: (_, { id }) => {
+    onSuccess: () => {
       return queryClient.invalidateQueries({ queryKey: queryKeys.categories })
     },
   })
@@ -84,7 +85,7 @@ export function useSuggestCategories() {
 
 export function useExpenses(filter: ExpenseFilter) {
   return useQuery({
-    queryKey: queryKeys.expenses(filter),
+    queryKey: queryKeys.expensesList(filter),
     queryFn: () => listExpenses(filter),
     staleTime: 1000 * 30, // 30 seconds
   })
@@ -165,15 +166,24 @@ export function useImportJob(id: string) {
   return useQuery({
     queryKey: queryKeys.importJob(id),
     queryFn: () => getImportJob(id),
-    enabled: !!id,
-    staleTime: 1000 * 5, // 5 seconds
-    refetchInterval: 1000 * 5, // Poll every 5 seconds
+    enabled: Boolean(id),
+    staleTime: 0,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      if (!status || status === 'done' || status === 'failed') return false
+      return 1500
+    },
   })
 }
 
 export function useCreateImportJob() {
+  const queryClient = useQueryClient()
+  
   return useMutation({
     mutationFn: createImportJob,
+    onSuccess: () => {
+      return queryClient.invalidateQueries({ queryKey: queryKeys.expenses })
+    },
   })
 }
 

@@ -9,7 +9,7 @@ const parent = getRouteApi("/_protected");
 
 export function AppHeader() {
   const { user } = parent.useRouteContext();
-  const { data: categories } = useCategories();
+  const { data: categories = [] } = useCategories();
   const [manageOpen, setManageOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [editing, setEditing] = useState<CategoryRecord | null>(null);
@@ -20,7 +20,7 @@ export function AppHeader() {
       <ManageCategoriesDialog
         open={manageOpen}
         onOpenChange={setManageOpen}
-        categories={categories || []}
+        categories={categories}
         onEdit={(category) => {
           setManageOpen(false);
           setEditing(category);
@@ -36,7 +36,7 @@ export function AppHeader() {
         open={categoryOpen}
         onOpenChange={setCategoryOpen}
         initial={editing}
-        existingCount={(categories || []).length}
+        existingCount={categories.length}
         onSaved={() => {}}
       />
     </>

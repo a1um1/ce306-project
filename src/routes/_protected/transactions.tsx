@@ -17,7 +17,8 @@ import {
   toDateKey,
   type RangeKey,
 } from "@/lib/utils/format";
-import { useCategories, useExpenses } from "@/lib/hooks/use-api-queries";
+import { useCategories, useExpenses, queryKeys } from "@/lib/hooks/use-api-queries";
+import { useQueryClient } from "@tanstack/react-query";
 import type { ExpenseFilter } from "@/lib/api/types";
 
 const parent = getRouteApi("/_protected");
@@ -61,8 +62,13 @@ export const Route = createFileRoute("/_protected/transactions")({
 
 function Transactions() {
   const { user } = parent.useRouteContext();
+  const queryClient = useQueryClient();
   const { from, to, categoryId, sort, q } = Route.useSearch();
   const navigate = Route.useNavigate();
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.expenses });
+  };
 
   const setFrom = (value: string) =>
     void navigate({ search: (prev) => ({ ...prev, from: value }) });
@@ -152,7 +158,7 @@ function Transactions() {
   };
 
   // A background import can land slips older than the filter's start; widen the
-  // window so they show. TanStack Query will auto-refetch when filter changes.
+  // window so they show, and refetch expenses.
   useEffect(() => {
     const handler = (event: Event) => {
       const earliest = (event as CustomEvent<{ earliestAt: string | null }>).detail?.earliestAt
@@ -160,6 +166,7 @@ function Transactions() {
         const key = toDateKey(new Date(earliest))
         if (key < from) setFrom(key)
       }
+      refresh()
     }
     window.addEventListener(IMPORTED_EVENT, handler)
     return () => window.removeEventListener(IMPORTED_EVENT, handler)
@@ -288,7 +295,7 @@ function Transactions() {
           loading={loading}
           categories={categories}
           empty="ไม่พบรายจ่ายในช่วงที่เลือก"
-          onChanged={() => {}}
+          onChanged={refresh}
           grouped={sort === "date-desc" || sort === "date-asc"}
         />
       </div>
