@@ -52,28 +52,25 @@ private func matches(_ text: String, _ pattern: String) -> [String]? {
 
 func extract(file: String, obs: [Obs], session: LanguageModelSession) async throws -> [String: Any] {
 	do {
-let ocrText = obs.map(\.text).joined(separator: "\n")
-		print("slip-reader: OCR text:\n\(ocrText)")
+		let ocrText = obs.map(\.text).joined(separator: "\n")
     guard !ocrText.isEmpty else { throw SlipError.noText }
-		print("slip-reader: sending to model for field extraction...")
     let options = GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 120)
     let slip = try await session.respond(
         to: "OCR text:\n\(ocrText)",
 				generating: Slip.self,
         options: options
     ).content
-	print("slip-reader: model returned slip: \(slip)")
+
     let id = slip.transactionId
 		let dateText = slip.dateText
 		let amount = slip.amount
 		let sender = slip.sender
 		let recipient = slip.recipient
-		print("Debug of extracted fields:" 
-					+ "\n  amount: \(slip.amount.debugDescription)")
+
 		let amountValue = Double(
 			amount.replacingOccurrences(of: ",", with: "")
 						.trimmingCharacters(in: .whitespaces)
-	) ?? 0
+		) ?? 0
 
     return [
         "file": (file as NSString).lastPathComponent,
@@ -85,9 +82,8 @@ let ocrText = obs.map(\.text).joined(separator: "\n")
         "sender": ["name": sender] as [String: Any],
         "recipient": ["name": recipient] as [String: Any],
     ]
-} catch let e as LanguageModelSession.GenerationError {
-    print("GenerationError: \(e)")                // see cases below
-    throw e
-}
-    
+	} catch let e as LanguageModelSession.GenerationError {
+			print("GenerationError: \(e)")
+			throw e
+	}
 }
