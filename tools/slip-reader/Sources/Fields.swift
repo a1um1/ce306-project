@@ -1,18 +1,3 @@
-// Slip fields from OCR text: Apple's on-device foundation model does the
-// reading, so there are no per-bank zones or regex heuristics to maintain.
-//
-// The model generates against a runtime GenerationSchema instead of a
-// @Generable struct: the FoundationModels macro plugin ships only with full
-// Xcode, so Command Line Tools cannot compile the macros. The schema is the
-// same guarantee — the model can only return these fields.
-//
-// The schema holds only what the app stores (reference, date line, amount,
-// sender, recipient). Fee and slip header cost ~0.3s each to generate and are
-// not used, so they are not asked for.
-//
-// Dates are the one deterministic step: the model copies the printed date line
-// and the Buddhist-era conversion below is mechanical. Asking the model to do
-// that arithmetic misread times in testing.
 import Foundation
 import FoundationModels
 
@@ -70,7 +55,7 @@ private func slipSchema() throws -> GenerationSchema {
             description: "Fields read from one Thai bank transfer slip.",
             properties: [
                 text("transactionId", "Reference printed on the slip, e.g. 016253092413CPM01291."),
-                text("dateText", "Date and time line copied exactly as printed, including the Thai month."),
+                text("dateText", "Date and time line converted to standard iso date time format"),
                 .init(
                     name: "amount",
                     description: "Transferred amount in THB, not the fee.",
@@ -84,26 +69,6 @@ private func slipSchema() throws -> GenerationSchema {
     )
 }
 
-private let thaiMonths: [String: Int] = [
-    "ม.ค.": 1, "ก.พ.": 2, "มี.ค.": 3, "เม.ย.": 4, "พ.ค.": 5, "มิ.ย.": 6,
-    "ก.ค.": 7, "ส.ค.": 8, "ก.ย.": 9, "ต.ค.": 10, "พ.ย.": 11, "ธ.ค.": 12,
-]
-
-// Buddhist-era year -> CE. Two-digit years are BE (69 = 2569); four-digit BE
-// years also appear on some slips.
-private func ceYear(_ year: Int) -> Int {
-    let be = year < 100 ? year + 2500 : year
-    return be > 2400 ? be - 543 : be
-}
-
-private func stamp(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> String? {
-    guard (1...12).contains(month), (1...31).contains(day), (0...23).contains(hour), (0...59).contains(minute) else {
-        return nil
-    }
-    let ce = ceYear(year)
-    guard (1900...2200).contains(ce) else { return nil }
-    return String(format: "%04d-%02d-%02dT%02d:%02d:00+07:00", ce, month, day, hour, minute)
-}
 
 private func matches(_ text: String, _ pattern: String) -> [String]? {
     guard let re = try? NSRegularExpression(pattern: pattern) else { return nil }
@@ -114,31 +79,10 @@ private func matches(_ text: String, _ pattern: String) -> [String]? {
     }
 }
 
-// "15 ก.ย. 69 11:31 น." or "15/09/69 11:31".
-func dateTime(from raw: String) -> String? {
-    if let parts = matches(raw, "(\\d{1,2})\\s+(\\S+)\\s+(\\d{2,4})\\s+(\\d{1,2}):(\\d{2})"),
-       parts.count == 5,
-       let month = thaiMonths[parts[1]],
-       let day = Int(parts[0]), let year = Int(parts[2]),
-       let hour = Int(parts[3]), let minute = Int(parts[4]) {
-        return stamp(year, month, day, hour, minute)
-    }
-    if let parts = matches(raw, "(\\d{1,2})/(\\d{1,2})/(\\d{2,4})\\s+(\\d{1,2}):(\\d{2})"),
-       parts.count == 5,
-       let day = Int(parts[0]), let month = Int(parts[1]), let year = Int(parts[2]),
-       let hour = Int(parts[3]), let minute = Int(parts[4]) {
-        return stamp(year, month, day, hour, minute)
-    }
-    return nil
-}
-
-// A fresh session per slip: reusing one grows the transcript, which made each
-// later slip slower in a batch (3.0s -> 5.5s over 21 slips).
 func extract(file: String, obs: [Obs], session: LanguageModelSession) async throws -> [String: Any] {
     let ocrText = obs.sorted { $0.box.midY > $1.box.midY }.map(\.text).joined(separator: "\n")
     guard !ocrText.isEmpty else { throw SlipError.noText }
 
-    // Greedy sampling is both repeatable and the fastest option here.
     let options = GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 120)
     let slip = try await session.respond(
         to: "OCR text:\n\(ocrText)",
@@ -151,12 +95,12 @@ func extract(file: String, obs: [Obs], session: LanguageModelSession) async thro
     let amount = try slip.value(Double.self, forProperty: "amount")
     let sender = try slip.value(String.self, forProperty: "sender")
     let recipient = try slip.value(String.self, forProperty: "recipient")
-
-    let date = dateTime(from: dateText) ?? dateTime(from: ocrText)
+	
     return [
         "file": (file as NSString).lastPathComponent,
+				"raw": ocrText,
         "transactionId": id,
-        "dateTime": date ?? NSNull(),
+        "dateTime": dateText,
         "amount": max(0, amount),
         "currency": "THB",
         "sender": ["name": sender] as [String: Any],

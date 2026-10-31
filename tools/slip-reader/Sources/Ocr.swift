@@ -21,9 +21,6 @@ func recognize(_ cg: CGImage) throws -> [Obs] {
     }
 }
 
-// Single-pass decode + downscale. maxEdge caps the long side. 768 is the
-// accuracy floor we measured; 1280 keeps headroom for soft phone photos at no
-// output cost on sharp slips. SLIP_MAX_EDGE overrides it (re-measure the cliff).
 func loadCGImage(_ path: String, maxEdge: Int = 0) -> CGImage? {
     let edge = maxEdge > 0
         ? maxEdge

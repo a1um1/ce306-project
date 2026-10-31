@@ -24,9 +24,6 @@ for a in args {
     }
 }
 
-// Vision already saturates the ANE/GPU, and the model session is on-device:
-// running slips concurrently gives the same wall time but inflates per-slip
-// latency, so keep it serial and ordered.
 var results = [[String: Any]?](repeating: nil, count: images.count)
 
 let model = SystemLanguageModel.default
@@ -43,8 +40,6 @@ for index in 0..<images.count {
         continue
     }
     do {
-        // A fresh session per slip: reusing one grows the transcript, which
-        // made each later slip slower (3.0s -> 5.5s over a batch).
         let session = LanguageModelSession(model: model, instructions: instructions)
 
         let start = DispatchTime.now()
