@@ -136,16 +136,12 @@ function SlipTest() {
                     </div>
                     <div>
                       <dt>ผู้รับ</dt>
-                      <dd>{row.read.recipient || "—"}</dd>
+                      <dd>{row.read.recipient.name || "—"}</dd>
                     </div>
                   </dl>
                 ) : (
                   <span className={styles.failed}>อ่านไม่ได้</span>
                 )}
-
-                <span className={styles.qr}>
-                  {row.payload ? `QR: ${row.payload.slice(0, 32)}…` : "ไม่พบ QR ในรูป"}
-                </span>
 
                 {row.read ? (
                   <details className={styles.json}>

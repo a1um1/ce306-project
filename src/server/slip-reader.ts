@@ -2,23 +2,21 @@ import { createHash } from "node:crypto";
 import type { SlipRead } from "@/lib/api/types";
 import { saveImportRead } from "./label-store";
 
-async function readRemotely(baseUrl: string, dataUrls: string[]): Promise<(SlipRead | null)[]> {
+async function readRemotely(fileUrl: string): Promise<SlipRead | null> {
   const token = process.env.SLIP_READER_TOKEN;
-  const response = await fetch(`${baseUrl.replace(/\/$/, "")}/read`, {
+  const baseUrl = process.env.SLIP_READER_URL;
+
+  if (!baseUrl) throw new Error("Slip service are not available");
+  const buffer = Buffer.from(fileUrl.split(",")[1] ?? "", "base64");
+  const response = await fetch(`${baseUrl.replace(/\/$/, "")}/slip`, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ dataUrls }),
+    headers: token ? { authorization: `Bearer ${token}` } : {},
+    body: buffer,
   });
   if (!response.ok) throw new Error(`slip reader returned ${response.status}`);
-  return (await response.json()) as (SlipRead | null)[];
+  return (await response.json()) as SlipRead | null;
 }
 
-// Every read the importer would accept is training data: nothing edited it, so
-// the values are what the app used. Content-addressed so a re-read of the same
-// photo updates one record instead of adding copies.
 async function saveAccepted(dataUrls: string[], reads: (SlipRead | null)[]): Promise<void> {
   if (process.env.SLIP_SAVE_READS !== "1") return;
   await Promise.all(
@@ -33,23 +31,25 @@ async function saveAccepted(dataUrls: string[], reads: (SlipRead | null)[]): Pro
           amount: String(read.amount),
           dateTime: read.dateTime ?? "",
           transactionId: read.transactionId,
-          sender: read.sender,
-          recipient: read.recipient,
+          sender: read.sender.name,
+          recipient: read.recipient.name,
         },
       }).catch((cause) => {
-        // Saving is a side effect: never fail the read because of it.
         console.warn(`slip-reader: could not save ${name}`, cause);
       });
     }),
   );
 }
 
-// SLIP_READER_URL points at the OCR service (`pnpm slips:serve`). Unset, the
-// macOS binary runs in-process, which is the zero-setup path for local dev.
 export async function readSlipImages(dataUrls: string[]): Promise<(SlipRead | null)[]> {
   if (dataUrls.length === 0) return [];
-  const remote = process.env.SLIP_READER_URL;
-  const reads = remote ? await readRemotely(remote, dataUrls) : await readLocally(dataUrls);
+  const reads = [] as (SlipRead | null)[];
+  for (const url of dataUrls) {
+    console.log(`slip-reader: reading ${url.slice(0, 30)}...`);
+    const result = await readRemotely(url);
+    reads.push(result);
+  }
+  console.log(reads);
   await saveAccepted(dataUrls, reads);
   return reads;
 }

@@ -22,7 +22,7 @@ printed, return an empty string (or 0 for the amount); never guess, and never re
 values from these instructions.
 
 - amount: the transferred amount in THB, not the fee.
-- dateText: the date and time exactly as printed. Do not convert the era or format.
+- dateText: convert date and time to ISO format.
 - transactionId: the transfer reference printed on the slip. Thai labels are
   "เลขที่รายการ:", "เลขที่อ้างอิง", "รหัสอ้างอิง", "Ref", "Reference". Take the value
   that belongs to one of those labels, usually the longest alphanumeric string.
@@ -53,7 +53,7 @@ private func slipSchema() throws -> GenerationSchema {
             description: "Fields read from one Thai bank transfer slip.",
             properties: [
                 text("transactionId", "Transfer reference from เลขที่รายการ, เลขที่อ้างอิง or รหัสอ้างอิง. Empty when absent; never a Biller ID, tax id or account number."),
-                text("dateText", "Date and time exactly as printed, e.g. 10 ก.ย. 69 09:24 น. Do not convert."),
+                text("dateText", "Date and time in ISO format, e.g. 2023-09-10T09:24:00.000Z. Convert from the printed format."),
                 .init(
                     name: "amount",
                     description: "Transferred amount in THB, not the fee. 0 when not printed.",
@@ -72,7 +72,7 @@ struct Slip {
     @Guide(description: "Transfer reference from เลขที่รายการ, เลขที่อ้างอิง or รหัสอ้างอิง. Empty when absent; never a Biller ID, tax id or account number.")
     var transactionId: String
 
-    @Guide(description:  "Date and time exactly as printed, e.g. 10 ก.ย. 69 09:24 น. Do not convert.")
+    @Guide(description:  "Date and time In ISO format, e.g. 2023-09-10T09:24:00.000Z. Convert from the printed format.")
     var dateText: String
 
     @Guide(description: "Transferred amount in THB, not the fee. 0 when not printed.")

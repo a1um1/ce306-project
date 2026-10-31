@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server/index.ts & vite dev & bun run slips:run",
+    "dev": "tsx watch src/server/index.ts & vite dev & bun run slips:prod",
     "dev:web": "vite dev",
     "dev:api": "tsx watch src/server/index.ts",
     "build": "vite build",
@@ -14,6 +14,7 @@
     "test": "tsx --test src/lib/utils/*.test.ts src/server/*.test.ts tools/slip-reader/*.test.ts",
 
     "slips:build": "swift build -c release --package-path tools/slip-reader",
+		"slips:prod": "bun run slips:build && ./tools/slip-reader/.build/release/slip-service",
     "slips:run": "swift run --package-path tools/slip-reader slip-service",
     "slips:clean": "swift package clean --package-path tools/slip-reader",
     "db:up": "docker compose up -d",
