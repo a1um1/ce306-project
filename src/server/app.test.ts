@@ -46,6 +46,7 @@ test("data routes require a session", async () => {
     ["PATCH", "/api/categories/some-id"],
     ["POST", "/api/import-jobs"],
     ["GET", "/api/import-jobs/some-id"],
+    ["GET", "/api/line/account"],
     ["POST", "/api/slips/read"],
   ];
 

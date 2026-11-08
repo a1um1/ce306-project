@@ -1,11 +1,12 @@
 // LINE natural-language handler: text message -> Apple Foundation Model (via the
-// line-nlu Swift service) -> add_expense / query_expenses / delete_last -> reply.
-// The model picks tools; the app validates arguments and computes all sums.
+// line-nlu Swift service) -> tools -> reply.
+// Single-item add saves immediately; a multi-item memo shows a flex confirm
+// card and only saves when the user taps "บันทึก" (postback).
 import { and, count, desc, eq, gte, ilike, isNull, lte, or, sql } from 'drizzle-orm'
 import { db } from '@/db'
-import { category, expense } from '@/db/schema'
+import { account, category, expense } from '@/db/schema'
 import { formatAmount } from '@/lib/utils/format'
-import { replyMessage, type Client } from './line-client'
+import { pushMessage, replyMessage, showLoading, type Client } from './line-client'
 
 export type LineEvent = {
   id: string
@@ -13,18 +14,36 @@ export type LineEvent = {
   replyToken?: string
   source?: { userId?: string }
   message?: { id: string; type: string; text?: string }
+  postback?: { data?: string }
   [key: string]: unknown
 }
 
 // One model step: either a tool call or a final Thai reply.
 export type Step = { tool: string; args: string; reply: string }
 
+// One validated expense row, ready to insert (as built by buildRows).
+export type ExpenseRow = {
+  id: string
+  userId: string
+  title: string
+  payee: null
+  amount: string
+  type: 'expense' | 'income'
+  note: string
+  categoryId: string | null
+  occurredAt: Date
+  source: 'line_text'
+  rawText: null
+}
+
 export type LineDeps = {
-  client?: Pick<Client, 'replyMessage'>
+  client?: Pick<Client, 'replyMessage' | 'pushMessage' | 'showLoading'>
   callModel?: (date: string, history: string) => Promise<Step>
   runTool?: (tool: string, argsJson: string, userId: string, now: Date) => Promise<string>
-  userIdFor?: (lineUserId: string) => string | null
+  userIdFor?: (lineUserId: string) => string | null | Promise<string | null>
   now?: () => Date
+  insertRows?: (rows: ExpenseRow[]) => Promise<Array<{ title: string; amount: string }>>
+  memoStore?: Map<string, ExpenseRow[]>
 }
 
 // Line message params the model may pass. Strictly validated before use.
@@ -35,14 +54,30 @@ type QueryArgs = { date_from?: string | null; date_to?: string | null; category?
 const MAX_TOOL_CALLS = 3
 const TIMEZONE = () => process.env.APP_TIMEZONE ?? 'Asia/Bangkok'
 const NOT_LINKED_TEXT =
-  'ยังไม่ได้เชื่อมต่อบัญชี LINE กับ PayTail ในระบบนี้ครับ จับคู่ผ่าน LINE_LOGIN/ENV ตามที่ตั้งไว้'
+  'ยังไม่พบการเชื่อมต่อบัญชี LINE กับ PayTail ครับ เข้าแอป > การตั้งค่า > เชื่อมต่อ LINE ก่อนเริ่มจดรายจ่ายได้เลย'
+
+const defaultClient: Pick<Client, 'replyMessage' | 'pushMessage' | 'showLoading'> = { replyMessage, pushMessage, showLoading }
+
+// Memos awaiting the user's "บันทึก" tap: lineUserId -> parsed rows. Saved (or
+// dropped) on the postback, so nothing is written until the user confirms.
+// shortcut: in-memory, lost on restart; upgrade to a table if the box restarts often
+export const pendingMemos = new Map<string, ExpenseRow[]>()
 
 // ---------------------------------------------------------------------------
-// User resolution: env mapping for now (LINE_USER_ID -> PAYTAIL_USER_ID).
-// Linking through better-auth LINE OAuth is the planned replacement.
+// User resolution. A user who linked LINE via OAuth (settings page:
+// `account` with providerId='line'; accountId is the LINE user id, same id the
+// Messaging API webhook reports when the LINE Login + Messaging API channels
+// share the same provider). The env pair is the fallback for that single-user
+// deployment.
 // ---------------------------------------------------------------------------
 
-function envUserId(lineUserId: string): string | null {
+async function resolveUserId(lineUserId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ userId: account.userId })
+    .from(account)
+    .where(and(eq(account.providerId, 'line'), eq(account.accountId, lineUserId)))
+    .limit(1)
+  if (row) return row.userId
   if (process.env.LINE_USER_ID === lineUserId) return process.env.PAYTAIL_USER_ID ?? null
   return null
 }
@@ -93,18 +128,20 @@ async function resolveCategoryId(userId: string, name: string): Promise<string |
   return row?.id ?? null
 }
 
-async function addExpense(argsRaw: unknown, userId: string, now: Date): Promise<string> {
+// Validate the model's add_expense args and build ready-to-insert rows. Category
+// ids and dates are resolved here, so the confirm postback can insert instantly.
+async function buildRows(argsRaw: unknown, userId: string, now: Date): Promise<{ ok: true; rows: ExpenseRow[] } | { ok: false; error: string }> {
   const args = argsRaw as AddArgs
-  if (!Array.isArray(args.items) || args.items.length === 0) return 'ERROR: items array required'
+  if (!Array.isArray(args.items) || args.items.length === 0) return { ok: false, error: 'ERROR: items array required' }
   const tz = TIMEZONE()
-  const rows = []
+  const rows: ExpenseRow[] = []
   for (const item of args.items) {
     if (!item || typeof item.amount !== 'number' || !Number.isFinite(item.amount) || item.amount <= 0) {
-      return 'ERROR: each item needs a positive number amount'
+      return { ok: false, error: 'ERROR: each item needs a positive number amount' }
     }
-    if (item.amount > 10_000_000) return 'ERROR: amount too large'
+    if (item.amount > 10_000_000) return { ok: false, error: 'ERROR: amount too large' }
     const note = String(item.note ?? '').trim()
-    if (!note) return 'ERROR: each item needs a note'
+    if (!note) return { ok: false, error: 'ERROR: each item needs a note' }
     const date = item.date && /^\d{4}-\d{2}-\d{2}$/.test(String(item.date)) ? String(item.date) : null
     rows.push({
       id: crypto.randomUUID(),
@@ -120,9 +157,14 @@ async function addExpense(argsRaw: unknown, userId: string, now: Date): Promise<
       rawText: null,
     })
   }
-  const saved = await db.insert(expense).values(rows).returning({ id: expense.id, title: expense.title, amount: expense.amount })
-  const lines = saved.map((r) => `${r.title} ${formatAmount(r.amount)}`).join(', ')
-  return `OK: saved ${lines}`
+  return { ok: true, rows }
+}
+
+async function insertRows(rows: ExpenseRow[]): Promise<Array<{ title: string; amount: string }>> {
+  return db
+    .insert(expense)
+    .values(rows)
+    .returning({ title: expense.title, amount: expense.amount })
 }
 
 type QueryRow = { title: string; amount: string; occurredAt: Date | null }
@@ -195,8 +237,12 @@ async function runTool(tool: string, argsJson: string, userId: string, now: Date
     }
   }
   switch (tool) {
-    case 'add_expense':
-      return addExpense(args, userId, now)
+    case 'add_expense': {
+      const built = await buildRows(args, userId, now)
+      if (!built.ok) return built.error
+      const saved = await insertRows(built.rows)
+      return `OK: saved ${saved.map((r) => `${r.title} ${formatAmount(r.amount)}`).join(', ')}`
+    }
     case 'query_expenses':
       return queryExpenses(args, userId, now)
     case 'delete_last':
@@ -222,29 +268,119 @@ async function callModel(date: string, history: string): Promise<Step> {
 }
 
 // ---------------------------------------------------------------------------
-// Orchestration: ack reply, then up to MAX_TOOL_CALLS tool turns, then a final
-// Thai reply. Every message, tool call and result is logged.
+// Flex confirm card for a multi-item memo.
+// ---------------------------------------------------------------------------
+
+function memoConfirmFlex(rows: ExpenseRow[]): unknown {
+  const total = rows.reduce((sum, r) => sum + Number(r.amount), 0)
+  const items = rows.map((r) => ({
+    type: 'box',
+    layout: 'baseline',
+    spacing: 'sm',
+    contents: [
+      { type: 'text', text: r.title, flex: 2, size: 'sm', wrap: true },
+      { type: 'text', text: formatAmount(r.amount), flex: 1, size: 'sm', align: 'end' },
+    ],
+  }))
+  return {
+    type: 'bubble',
+    header: {
+      type: 'box',
+      layout: 'vertical',
+      contents: [{ type: 'text', text: 'จดรายจ่ายนี้ใช่ไหม?', weight: 'bold', size: 'md' }],
+    },
+    body: {
+      type: 'box',
+      layout: 'vertical',
+      spacing: 'sm',
+      contents: [
+        ...items,
+        { type: 'separator' },
+        {
+          type: 'box',
+          layout: 'baseline',
+          contents: [
+            { type: 'text', text: 'รวม', weight: 'bold', flex: 2 },
+            { type: 'text', text: `${formatAmount(total)} บาท`, weight: 'bold', flex: 1, align: 'end' },
+          ],
+        },
+      ],
+    },
+    footer: {
+      type: 'box',
+      layout: 'vertical',
+      spacing: 'sm',
+      contents: [
+        { type: 'button', style: 'primary', height: 'sm', action: { type: 'postback', label: 'บันทึก', data: 'memo:save', displayText: 'บันทึกเลย' } },
+        { type: 'button', style: 'secondary', height: 'sm', action: { type: 'postback', label: 'ยกเลิก', data: 'memo:cancel', displayText: 'ไม่จด' } },
+      ],
+    },
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Postback from a memo confirm card: save (insert the pending rows) or cancel.
+// ---------------------------------------------------------------------------
+
+async function processPostback(
+  event: LineEvent,
+  client: Pick<Client, 'replyMessage' | 'pushMessage' | 'showLoading'>,
+  save: (rows: ExpenseRow[]) => Promise<Array<{ title: string; amount: string }>>,
+  memoStore: Map<string, ExpenseRow[]>,
+): Promise<void> {
+  const data = event.postback?.data ?? ''
+  const lineUserId = event.source?.userId ?? ''
+  const replyToken = event.replyToken ?? ''
+  if (!data.startsWith('memo:')) return
+  const rows = memoStore.get(lineUserId)
+  if (!rows) {
+    if (replyToken) await client.replyMessage(replyToken, [{ type: 'text', text: 'ไม่พบบิลที่รอจดครับ ส่งเมมโมใหม่ได้เลย' }])
+    return
+  }
+  memoStore.delete(lineUserId)
+  if (data === 'memo:cancel') {
+    if (replyToken) await client.replyMessage(replyToken, [{ type: 'text', text: 'ไม่จดแล้วครับ ถ้าอยากแก้ไขส่งเมมโมใหม่ได้เลย' }])
+    return
+  }
+  const saved = await save(rows)
+  const lines = saved.map((r) => `${r.title} ${formatAmount(r.amount)}`).join(', ')
+  if (replyToken) await client.replyMessage(replyToken, [{ type: 'text', text: `บันทึกแล้วครับ: ${lines}` }])
+}
+
+// ---------------------------------------------------------------------------
+// Orchestration.
+// Message events: typing indicator, then parse (<= MAX_TOOL_CALLS tool turns).
+// add_expense is terminal: single item auto-saves, multiple items push a
+// confirm flex and wait for the postback. Replies are pushed because the
+// loading animation + model runs can outlast the ~10s reply-token window.
 // ---------------------------------------------------------------------------
 
 export async function processLineEvent(event: LineEvent, deps: LineDeps = {}): Promise<void> {
   const {
-    client = { replyMessage },
+    client = defaultClient,
     callModel: call = callModel,
     runTool: run = runTool,
-    userIdFor = envUserId,
+    userIdFor = resolveUserId,
     now = () => new Date(),
+    insertRows: save = insertRows,
+    memoStore = pendingMemos,
   } = deps
   const replyToken = event.replyToken ?? ''
   const lineUserId = event.source?.userId ?? ''
 
   try {
+    if (event.type === 'postback') {
+      await processPostback(event, client, save, memoStore)
+      return
+    }
     if (event.type !== 'message' || event.message?.type !== 'text' || !replyToken) return
     const text = event.message.text ?? ''
     console.log(`[line] message from ${lineUserId}: ${text}`)
+    void client.showLoading(lineUserId)
 
-    const userId = userIdFor(lineUserId)
+    const userId = await userIdFor(lineUserId)
     if (!userId) {
-      await client.replyMessage(replyToken, [{ type: 'text', text: NOT_LINKED_TEXT }])
+      await client.pushMessage(lineUserId, [{ type: 'text', text: NOT_LINKED_TEXT }])
       return
     }
 
@@ -259,15 +395,40 @@ export async function processLineEvent(event: LineEvent, deps: LineDeps = {}): P
         final = step.reply || final
         break
       }
+      if (step.tool === 'add_expense') {
+        let argsRaw: unknown = {}
+        if (step.args) {
+          try {
+            argsRaw = JSON.parse(step.args)
+          } catch {
+            argsRaw = {}
+          }
+        }
+        const built = await buildRows(argsRaw, userId, now())
+        if (!built.ok) {
+          // Validation failed: feed the error back so the model can retry once.
+          history += `\nassistant: tool add_expense(${step.args})\nresult: ${built.error}`
+          continue
+        }
+        if (built.rows.length === 1) {
+          const saved = await save(built.rows)
+          const text = saved.map((r) => `${r.title} ${formatAmount(r.amount)}`).join(', ')
+          await client.pushMessage(lineUserId, [{ type: 'text', text: `บันทึกแล้วครับ: ${text}` }])
+        } else {
+          memoStore.set(lineUserId, built.rows)
+          await client.pushMessage(lineUserId, [{ type: 'flex', altText: 'ยืนยันการจดรายจ่าย', contents: memoConfirmFlex(built.rows) }])
+        }
+        return // add is terminal: either saved now or awaiting the flex tap
+      }
       const result = await run(step.tool, step.args, userId, now())
       console.log(`[line] tool ${step.tool}: ${step.args} -> ${result}`)
       history += `\nassistant: tool ${step.tool}(${step.args})\nresult: ${result}`
     }
 
     console.log(`[line] reply: ${final}`)
-    await client.replyMessage(replyToken, [{ type: 'text', text: final }])
+    await client.pushMessage(lineUserId, [{ type: 'text', text: final }])
   } catch (error) {
     console.error('[line] failed:', error instanceof Error ? error.message : error)
-    await client.replyMessage(replyToken, [{ type: 'text', text: 'จดไม่สำเร็จ ลองใหม่นะ' }])
+    await client.pushMessage(lineUserId, [{ type: 'text', text: 'จดไม่สำเร็จ ลองใหม่นะ' }])
   }
 }

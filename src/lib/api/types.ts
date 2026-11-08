@@ -4,6 +4,9 @@
 export type SessionUser = { id: string; name: string; email: string; image?: string | null };
 export type Session = { user: SessionUser; session: { id: string; expiresAt: string } } | null;
 
+// The LINE account the user linked via OAuth, or null when not linked.
+export type LineAccount = { lineUserId: string } | null;
+
 export type ExpenseFilter = { from?: string; to?: string; categoryId?: string };
 export type ExpenseInput = {
   title: string;
