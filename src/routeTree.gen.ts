@@ -14,6 +14,7 @@ import { Route as ProtectedRouteRouteImport } from './routes/_protected/route'
 import { Route as ProtectedDashboardRouteImport } from './routes/_protected/dashboard'
 import { Route as ProtectedLabelRouteImport } from './routes/_protected/label'
 import { Route as ProtectedReaderRouteImport } from './routes/_protected/reader'
+import { Route as ProtectedSettingsRouteImport } from './routes/_protected/settings'
 import { Route as ProtectedTransactionsRouteImport } from './routes/_protected/transactions'
 
 const IndexRoute = IndexRouteImport.update({
@@ -40,6 +41,11 @@ const ProtectedReaderRoute = ProtectedReaderRouteImport.update({
   path: '/reader',
   getParentRoute: () => ProtectedRouteRoute,
 } as any)
+const ProtectedSettingsRoute = ProtectedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => ProtectedRouteRoute,
+} as any)
 const ProtectedTransactionsRoute = ProtectedTransactionsRouteImport.update({
   id: '/transactions',
   path: '/transactions',
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof ProtectedDashboardRoute
   '/label': typeof ProtectedLabelRoute
   '/reader': typeof ProtectedReaderRoute
+  '/settings': typeof ProtectedSettingsRoute
   '/transactions': typeof ProtectedTransactionsRoute
 }
 export interface FileRoutesByTo {
@@ -58,6 +65,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof ProtectedDashboardRoute
   '/label': typeof ProtectedLabelRoute
   '/reader': typeof ProtectedReaderRoute
+  '/settings': typeof ProtectedSettingsRoute
   '/transactions': typeof ProtectedTransactionsRoute
 }
 export interface FileRoutesById {
@@ -67,13 +75,15 @@ export interface FileRoutesById {
   '/_protected/dashboard': typeof ProtectedDashboardRoute
   '/_protected/label': typeof ProtectedLabelRoute
   '/_protected/reader': typeof ProtectedReaderRoute
+  '/_protected/settings': typeof ProtectedSettingsRoute
   '/_protected/transactions': typeof ProtectedTransactionsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/label' | '/reader' | '/transactions'
+  fullPaths:
+    '/' | '/dashboard' | '/label' | '/reader' | '/settings' | '/transactions'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/label' | '/reader' | '/transactions'
+  to: '/' | '/dashboard' | '/label' | '/reader' | '/settings' | '/transactions'
   id:
     | '__root__'
     | '/'
@@ -81,6 +91,7 @@ export interface FileRouteTypes {
     | '/_protected/dashboard'
     | '/_protected/label'
     | '/_protected/reader'
+    | '/_protected/settings'
     | '/_protected/transactions'
   fileRoutesById: FileRoutesById
 }
@@ -126,6 +137,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedReaderRouteImport
       parentRoute: typeof ProtectedRouteRoute
     }
+    '/_protected/settings': {
+      id: '/_protected/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof ProtectedSettingsRouteImport
+      parentRoute: typeof ProtectedRouteRoute
+    }
     '/_protected/transactions': {
       id: '/_protected/transactions'
       path: '/transactions'
@@ -140,6 +158,7 @@ interface ProtectedRouteRouteChildren {
   ProtectedDashboardRoute: typeof ProtectedDashboardRoute
   ProtectedLabelRoute: typeof ProtectedLabelRoute
   ProtectedReaderRoute: typeof ProtectedReaderRoute
+  ProtectedSettingsRoute: typeof ProtectedSettingsRoute
   ProtectedTransactionsRoute: typeof ProtectedTransactionsRoute
 }
 
@@ -147,6 +166,7 @@ const ProtectedRouteRouteChildren: ProtectedRouteRouteChildren = {
   ProtectedDashboardRoute: ProtectedDashboardRoute,
   ProtectedLabelRoute: ProtectedLabelRoute,
   ProtectedReaderRoute: ProtectedReaderRoute,
+  ProtectedSettingsRoute: ProtectedSettingsRoute,
   ProtectedTransactionsRoute: ProtectedTransactionsRoute,
 }
 

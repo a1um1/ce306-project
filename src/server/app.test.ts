@@ -47,6 +47,10 @@ test("data routes require a session", async () => {
     ["POST", "/api/import-jobs"],
     ["GET", "/api/import-jobs/some-id"],
     ["POST", "/api/slips/read"],
+    ["GET", "/api/line/link"],
+    ["GET", "/api/line/link-code"],
+    ["POST", "/api/line/link-code"],
+    ["DELETE", "/api/line/link"],
   ];
 
   for (const [method, path] of routes) {

@@ -1,4 +1,13 @@
-import { boolean, integer, numeric, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import {
+  boolean,
+  integer,
+  json,
+  numeric,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core'
 
 // Core Better Auth schema. Keep in sync with `auth.api` expectations.
 export const user = pgTable('user', {
@@ -91,14 +100,57 @@ export const expense = pgTable(
     payee: text('payee'),
     amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
-    source: text('source').notNull().default('manual'), // manual | qr
+    // Manual | qr | line_text | line_voice | line_slip (voice/slip reserved).
+    source: text('source').notNull().default('manual'),
     qrPayload: text('qr_payload'),
     externalId: text('external_id'), // slip transaction id, for dedupe
+    // expense | income; anything that adds money (salary, refunds) is income.
+    type: text('type').notNull().default('expense'),
+    // Extra detail from a memo, e.g. "ไม่ใส่ผัก" — displayed source text never lives here.
+    note: text('note'),
+    // The message text the entry came from (LINE memo only).
+    rawText: text('raw_text'),
+    // Soft delete: LINE "ลบล่าสุด" marks this instead of removing the row.
+    deletedAt: timestamp('deleted_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
   (table) => [uniqueIndex('expense_user_external_idx').on(table.userId, table.externalId)],
 )
+
+// LINE webhook events, one row per event id. The webhook inserts each event and
+// skips it when the id already exists, which is what makes LINE retries a no-op.
+export const lineEvent = pgTable('line_event', {
+  id: text('id').primaryKey(),
+  webhookEventId: text('webhook_event_id').notNull().unique(),
+  type: text('type').notNull(),
+  payload: json('payload').notNull(),
+  // received | processed | failed
+  status: text('status').notNull().default('received'),
+  error: text('error'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export const lineLink = pgTable('line_link', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  lineUserId: text('line_user_id').notNull().unique(),
+  linkedAt: timestamp('linked_at').defaultNow().notNull(),
+})
+
+// Short-lived six-character link code. Used once by marking used_at; old unused
+// codes are dropped whenever a fresh one is created.
+export const lineLinkCode = pgTable('line_link_code', {
+  code: text('code').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
 
 // A slip-batch import runs in the background so the user can close the dialog
 // (or the tab). Rows persist progress; `src/server/import-worker.ts` drives them and

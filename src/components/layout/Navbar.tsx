@@ -44,6 +44,9 @@ export function Navbar({ user, onManageCategories }: Props) {
                 จัดการหมวดหมู่
               </Menu.Item>
               <Menu.Separator className={styles.separator} />
+              <Menu.Item className={styles.menuItem} onClick={() => void navigate({ to: "/settings" })}>
+                การตั้งค่า
+              </Menu.Item>
               <Menu.Item className={styles.menuItem} onClick={signOut}>
                 ออกจากระบบ
               </Menu.Item>
