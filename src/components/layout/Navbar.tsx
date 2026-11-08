@@ -21,7 +21,7 @@ export function Navbar({ user, onManageCategories }: Props) {
   return (
     <header className={styles.navbar}>
       <Link
-        to="/"
+        to="/dashboard"
         search={{
           range: "today",
           year: new Date().getFullYear(),
@@ -44,7 +44,10 @@ export function Navbar({ user, onManageCategories }: Props) {
                 จัดการหมวดหมู่
               </Menu.Item>
               <Menu.Separator className={styles.separator} />
-              <Menu.Item className={styles.menuItem} onClick={() => void navigate({ to: "/settings" })}>
+              <Menu.Item
+                className={styles.menuItem}
+                onClick={() => void navigate({ to: "/settings" })}
+              >
                 การตั้งค่า
               </Menu.Item>
               <Menu.Item className={styles.menuItem} onClick={signOut}>

@@ -19,6 +19,26 @@
 			"target": "slip-service",
 			"configuration": "release",
 			"preLaunchTask": "swift: Build Release slip-service (tools/slip-reader)"
+		},
+		{
+			"type": "swift",
+			"request": "launch",
+			"args": [],
+			"cwd": "${workspaceFolder:cd306-pro}/tools/line-nlu",
+			"name": "Debug line-nlu (tools/line-nlu)",
+			"target": "line-nlu",
+			"configuration": "debug",
+			"preLaunchTask": "swift: Build Debug line-nlu (tools/line-nlu)"
+		},
+		{
+			"type": "swift",
+			"request": "launch",
+			"args": [],
+			"cwd": "${workspaceFolder:cd306-pro}/tools/line-nlu",
+			"name": "Release line-nlu (tools/line-nlu)",
+			"target": "line-nlu",
+			"configuration": "release",
+			"preLaunchTask": "swift: Build Release line-nlu (tools/line-nlu)"
 		}
 	]
 }

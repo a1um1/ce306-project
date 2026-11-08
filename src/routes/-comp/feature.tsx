@@ -89,20 +89,13 @@ export const FeatureComponent = () => {
           transition={reduced ? { duration: 0 } : { duration: 0.5, delay: 0.1, ease: "easeOut" }}
         >
           <h2 className={styles.title}>จดรายจ่ายอัตโนมัติ</h2>
-          <p className={styles.sub}>
-            แค่อัพโหลดสลิปโอนเงินระบบจะจดรายจ่ายอัตโนมัติ
-          </p>
+          <p className={styles.sub}>แค่อัพโหลดสลิปโอนเงินระบบจะจดรายจ่ายอัตโนมัติ</p>
           <a className={styles.try} href="#features">
             ลองเลย →
           </a>
         </motion.div>
 
-        <div
-          ref={deckRef}
-          className={styles.deck}
-          aria-hidden="true"
-          aria-label="ตัวอย่างสลิปโอนเงิน"
-        >
+        <div ref={deckRef} className={styles.deck} aria-hidden="true" aria-label="ตัวอย่างสลิปโอนเงิน">
           {SLIPS.map((slip, i) => (
             <Slip
               key={slip.bank}
@@ -149,32 +142,16 @@ const Slip = ({
       className={styles.slot}
       style={{ zIndex: 10 - Math.round(ad * 2) }}
       initial={reduced ? false : { y: -120, opacity: 0, rotate: rot }}
-      animate={
-        phase >= 1
-          ? { y: 0, opacity: 1, rotate: 0 }
-          : { y: -120, opacity: 0, rotate: rot }
-      }
+      animate={phase >= 1 ? { y: 0, opacity: 1, rotate: 0 } : { y: -120, opacity: 0, rotate: rot }}
       transition={
-        reduced || phase < 1
-          ? { duration: 0 }
-          : { duration: 0.7, delay: i * 0.12, ease: EASE }
+        reduced || phase < 1 ? { duration: 0 } : { duration: 0.7, delay: i * 0.12, ease: EASE }
       }
     >
       {/* Fan lives on the inner card so the drop can't fight it. */}
       <motion.div className={styles.card} style={{ x, y, rotate, scale }}>
-        <img src={src} alt="" />
-        {i === SLIPS.length - 1 && (
+        <img src={src} alt="" />0
+        {i === Math.trunc((SLIPS.length - 1) / 2) && (
           <>
-            {/* Placeholder bars over the front slip's body text. */}
-            <motion.div
-              className={styles.bars}
-              animate={phase >= 3 ? { opacity: 0 } : { opacity: 1 }}
-              transition={reduced ? { duration: 0 } : { duration: 0.4 }}
-            >
-              <i />
-              <i />
-              <i />
-            </motion.div>
             {/* Scan line sweeping the front slip, fired after the drops land. */}
             <motion.div
               className={styles.scan}

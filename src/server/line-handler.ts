@@ -1,528 +1,273 @@
-import { routeCommand } from '@/lib/command-router'
-import { normalizeText } from '@/lib/utils/categorize'
+// LINE natural-language handler: text message -> Apple Foundation Model (via the
+// line-nlu Swift service) -> add_expense / query_expenses / delete_last -> reply.
+// The model picks tools; the app validates arguments and computes all sums.
+import { and, count, desc, eq, gte, ilike, isNull, lte, or, sql } from 'drizzle-orm'
+import { db } from '@/db'
+import { category, expense } from '@/db/schema'
 import { formatAmount } from '@/lib/utils/format'
-import {
-  LlmMemoParser,
-  MemoParseError,
-  defaultTimezone,
-  occurredAtFor,
-  todayInTz,
-  type MemoParser,
-  type ParsedItem,
-} from '@/lib/utils/memo-parser'
-import { pushMessage, replyMessage, type Client, type LineTextMessage } from './line-client'
-import { dbLineStore, type LineStore } from './line-event-store'
-import { hashLineUser, logEvent } from './line-log'
+import { replyMessage, type Client } from './line-client'
 
-// One LINE webhook event as delivered. Only the fields we read are typed.
-export type WebhookEvent = {
+export type LineEvent = {
   id: string
   type: string
   replyToken?: string
   source?: { userId?: string }
   message?: { id: string; type: string; text?: string }
-  postback?: { data?: string }
-  deliveryContext?: { isRedelivery?: boolean }
   [key: string]: unknown
 }
 
-export type Pending = {
-  action: 'complete' | 'edit'
-  rawText?: string
-  expenseId?: string
-  expiresAt: number
-}
+// One model step: either a tool call or a final Thai reply.
+export type Step = { tool: string; args: string; reply: string }
 
-export type HandlerDeps = {
-  client?: Client
-  parser?: MemoParser
-  store?: LineStore
+export type LineDeps = {
+  client?: Pick<Client, 'replyMessage'>
+  callModel?: (date: string, history: string) => Promise<Step>
+  runTool?: (tool: string, argsJson: string, userId: string, now: Date) => Promise<string>
+  userIdFor?: (lineUserId: string) => string | null
   now?: () => Date
 }
 
-const LINK_CODE_RE = /^[A-Z0-9]{6}$/i
-const PENDING_TTL_MS = 5 * 60 * 1000
-const LLM_HOURLY_LIMIT = 30
+// Line message params the model may pass. Strictly validated before use.
+type AddItem = { amount: number; note: string; category?: string | null; date?: string | null; type?: 'expense' | 'income' }
+type AddArgs = { items: AddItem[] }
+type QueryArgs = { date_from?: string | null; date_to?: string | null; category?: string | null; keyword?: string | null }
 
-const AUDIO_IMAGE_NOTICE = 'ตอนนี้รองรับข้อความอย่างเดียวนะ เร็วๆ นี้จะรองรับเสียงและสลิป'
+const MAX_TOOL_CALLS = 3
+const TIMEZONE = () => process.env.APP_TIMEZONE ?? 'Asia/Bangkok'
 const NOT_LINKED_TEXT =
-  'ยังไม่ได้เชื่อมต่อบัญชีครับ 🔗\nเข้าเว็บ > การตั้งค่า > เชื่อมต่อ LINE แล้วกด "สร้างรหัสเชื่อมต่อ"\nจากนั้นส่งรหัส 6 ตัวมาที่นี่ครับ'
-const HELP_TEXT = [
-  'พิมพ์แบบนี้ได้เลยครับ 📝',
-  '· จดรายจ่าย: ปลาทู 40',
-  '· รายรับ: เงินเดือน 25000',
-  '· หลายรายการ: ข้าว 50 น้ำ 20',
-  '· ระบุวัน: เมื่อวานข้าวมันไก่ 55',
-  '· สรุปวันนี้ / สรุปเดือนนี้',
-  '· ลบล่าสุด',
-  'ยังไม่ได้เชื่อมต่อ? สร้างรหัสที่เว็บ แล้วส่งรหัส 6 ตัวให้บอทครับ',
-].join('\n')
-
-function addFriendHint(): string {
-  const basic = process.env.LINE_BOT_BASIC_ID
-  return basic
-    ? '\nเพิ่มบอท: https://line.me/R/ti/p/' + basic
-    : '\n(เพิ่มบอท: ตั้งค่า LINE_BOT_BASIC_ID)'
-}
-
-const WELCOME_TEXT =
-  'ยินดีต้อนรับครับ 🙏\nพิมพ์ "ช่วยเหลือ" เพื่อดูคำสั่ง\nก่อนจดรายการใช้ ยังต้องเชื่อมต่อบัญชีที่เว็บก่อนครับ' + addFriendHint()
+  'ยังไม่ได้เชื่อมต่อบัญชี LINE กับ PayTail ในระบบนี้ครับ จับคู่ผ่าน LINE_LOGIN/ENV ตามที่ตั้งไว้'
 
 // ---------------------------------------------------------------------------
-// In-memory rate limiter + pending state (single-node: fine in this process)
+// User resolution: env mapping for now (LINE_USER_ID -> PAYTAIL_USER_ID).
+// Linking through better-auth LINE OAuth is the planned replacement.
 // ---------------------------------------------------------------------------
 
-const llmCalls = new Map<string, number[]>()
-const pendingState = new Map<string, Pending>()
-
-export function resetLineRuntime() {
-  llmCalls.clear()
-  pendingState.clear()
+function envUserId(lineUserId: string): string | null {
+  if (process.env.LINE_USER_ID === lineUserId) return process.env.PAYTAIL_USER_ID ?? null
+  return null
 }
 
-export function allowLlmCall(userId: string, now = new Date()): boolean {
-  const hourAgo = now.getTime() - 60 * 60 * 1000
-  const stamped = (llmCalls.get(userId) ?? []).filter((t) => t > hourAgo)
-  if (stamped.length >= LLM_HOURLY_LIMIT) {
-    llmCalls.set(userId, stamped)
-    return false
-  }
-  stamped.push(now.getTime())
-  llmCalls.set(userId, stamped)
-  return true
+// Wall-clock YYYY-MM-DD in Bangkok (the assistant's calendar).
+function todayInTz(timezone: string, at: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(at)
 }
 
-function readPending(userId: string, now: Date): Pending | null {
-  const p = pendingState.get(userId)
-  if (!p || p.expiresAt <= now.getTime()) {
-    pendingState.delete(userId)
-    return null
-  }
-  return p
+function tzOffsetMinutes(timezone: string, at: Date): number {
+  const off = new Intl.DateTimeFormat('en-US', { timeZone: timezone, timeZoneName: 'shortOffset' })
+    .formatToParts(at)
+    .find((p) => p.type === 'timeZoneName')?.value ?? ''
+  const m = /GMT([+-])(\d{1,2})(?::(\d{2}))?/.exec(off)
+  if (!m) return 0
+  const minutes = m[3] ? Number(m[3]) : 0
+  return (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + minutes)
 }
 
-const DEFAULT_DEPS: HandlerDeps = {}
+// 'YYYY-MM-DD' -> 12:00 noon at that date in timezone, as a UTC instant.
+function noonInTz(date: string, timezone: string, at: Date): Date {
+  const [y, m, d] = date.split('-').map(Number)
+  if (![y, m, d].every(Number.isFinite)) return at
+  return new Date(Date.UTC(y, m - 1, d, 12) - tzOffsetMinutes(timezone, at) * 60_000)
+}
 
 // ---------------------------------------------------------------------------
-// Orchestration
+// The three tools. All DB access, sums and validation live here — the model
+// never returns a computed total.
 // ---------------------------------------------------------------------------
 
-export async function processLineEvent(event: WebhookEvent, deps: HandlerDeps = {}): Promise<void> {
-  const { client = { replyMessage, pushMessage }, parser = new LlmMemoParser(), store = dbLineStore, now = () => new Date() } = deps
-  const started = performance.now()
-  const lineUserId = event.source?.userId ?? ''
-  const hashed = hashLineUser(lineUserId)
+async function resolveCategoryId(userId: string, name: string): Promise<string | null> {
+  const [row] = await db
+    .select({ id: category.id })
+    .from(category)
+    .where(
+      and(
+        or(eq(category.userId, userId), isNull(category.userId)),
+        ilike(category.name, `%${name.trim()}%`),
+      ),
+    )
+    .limit(1)
+  return row?.id ?? null
+}
 
-  try {
-    const inserted = await store.beginEvent(event.id, event.type, event)
-    if (inserted === 'duplicate') {
-      logEvent(event.id, event.type, { userId: hashed, duplicate: 1 })
-      return
+async function addExpense(argsRaw: unknown, userId: string, now: Date): Promise<string> {
+  const args = argsRaw as AddArgs
+  if (!Array.isArray(args.items) || args.items.length === 0) return 'ERROR: items array required'
+  const tz = TIMEZONE()
+  const rows = []
+  for (const item of args.items) {
+    if (!item || typeof item.amount !== 'number' || !Number.isFinite(item.amount) || item.amount <= 0) {
+      return 'ERROR: each item needs a positive number amount'
     }
-
-    switch (event.type) {
-      case 'message':
-        await handleMessage(event, { client, parser, store, now })
-        break
-      case 'follow':
-        await client.replyMessage(event.replyToken ?? '', [{ type: 'text', text: WELCOME_TEXT }])
-        break
-      case 'postback':
-        await handlePostback(event, { client, store })
-        break
-      default:
-        // unknown types (unsend, join, beacon, ...): acknowledge, do nothing
-        break
-    }
-    await store.finishEvent(event.id, true)
-    logEvent(event.id, event.type, {
-      userId: hashed,
-      ms: Math.round(performance.now() - started),
-    })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    await store.finishEvent(event.id, false, message)
-    logEvent(event.id, event.type, {
-      userId: hashed,
-      ms: Math.round(performance.now() - started),
-      error: message,
+    if (item.amount > 10_000_000) return 'ERROR: amount too large'
+    const note = String(item.note ?? '').trim()
+    if (!note) return 'ERROR: each item needs a note'
+    const date = item.date && /^\d{4}-\d{2}-\d{2}$/.test(String(item.date)) ? String(item.date) : null
+    rows.push({
+      id: crypto.randomUUID(),
+      userId,
+      title: note,
+      payee: null,
+      amount: item.amount.toFixed(2),
+      type: item.type === 'income' ? 'income' : 'expense',
+      note,
+      categoryId: item.category ? await resolveCategoryId(userId, String(item.category)) : null,
+      occurredAt: date ? noonInTz(date, tz, now) : now,
+      source: 'line_text',
+      rawText: null,
     })
   }
+  const saved = await db.insert(expense).values(rows).returning({ id: expense.id, title: expense.title, amount: expense.amount })
+  const lines = saved.map((r) => `${r.title} ${formatAmount(r.amount)}`).join(', ')
+  return `OK: saved ${lines}`
 }
 
-async function handleMessage(
-  event: WebhookEvent,
-  deps: Required<HandlerDeps>,
-): Promise<void> {
-  const msg = event.message
-  const lineUserId = event.source?.userId ?? ''
-  if (!msg || !lineUserId) return
-  if (msg.type !== 'text') {
-    if (msg.type === 'audio' || msg.type === 'image') {
-      await deps.client.replyMessage(event.replyToken ?? '', [{ type: 'text', text: AUDIO_IMAGE_NOTICE }])
-    }
-    return
+type QueryRow = { title: string; amount: string; occurredAt: Date | null }
+
+async function queryExpenses(argsRaw: unknown, userId: string, now: Date): Promise<string> {
+  const args = (argsRaw ?? {}) as QueryArgs
+  const tz = TIMEZONE()
+  const filters = [eq(expense.userId, userId), isNull(expense.deletedAt)]
+  if (args.date_from) filters.push(gte(expense.occurredAt, noonInTz(String(args.date_from), tz, now)))
+  if (args.date_to) filters.push(lte(expense.occurredAt, noonInTz(String(args.date_to), tz, now)))
+  if (args.category) {
+    const ids = await db
+      .select({ id: category.id })
+      .from(category)
+      .where(and(or(eq(category.userId, userId), isNull(category.userId)), ilike(category.name, `%${String(args.category).trim()}%`)))
+    if (ids.length === 0) return 'NO DATA: no such category'
+    filters.push(eq(expense.categoryId, ids[0].id))
+  }
+  if (args.keyword) {
+    const kw = `%${String(args.keyword).trim()}%`
+    filters.push(ilike(expense.title, kw))
   }
 
-  const link = await deps.store.findLink(lineUserId)
-  const text = msg.text ?? ''
-  if (!link) {
-    await handleUnlinked(lineUserId, text, event, deps)
-    return
-  }
-  await handleLinked(link.userId, lineUserId, text, event, deps)
+  const [agg] = await db
+    .select({
+      total: sql`coalesce(sum(case when ${expense.type} = 'expense' then ${expense.amount} else 0 end), 0)`,
+      income: sql`coalesce(sum(case when ${expense.type} = 'income' then ${expense.amount} else 0 end), 0)`,
+      count: count(expense.id),
+    })
+    .from(expense)
+    .where(and(...filters))
+
+  const rows = (await db
+    .select({ title: expense.title, amount: expense.amount, occurredAt: expense.occurredAt })
+    .from(expense)
+    .where(and(...filters))
+    .orderBy(desc(expense.occurredAt))
+    .limit(5)) as QueryRow[]
+
+  const parts = [`spent ${formatAmount(Number(agg.total))}`, `${agg.count} entries`]
+  if (Number(agg.income) > 0) parts.push(`income ${formatAmount(Number(agg.income))}`)
+  const top = rows
+    .map((r) => `${r.title} ${formatAmount(r.amount)}`)
+  if (top.length > 0) parts.push('top: ' + top.join(', '))
+  return parts.join('; ')
 }
 
-// -- unlinked: accept only a 6-char code; anything else just gets instructions
-async function handleUnlinked(
-  lineUserId: string,
-  text: string,
-  event: WebhookEvent,
-  deps: Required<HandlerDeps>,
-): Promise<void> {
-  const stripped = text.trim()
-  if (LINK_CODE_RE.test(stripped)) {
-    const code = await deps.store.findCode(stripped, deps.now())
-    if (code) {
-      await deps.store.createLink(code.userId, lineUserId, deps.now())
-      await deps.store.markCodeUsed(code.code, deps.now())
-      await deps.client.replyMessage(event.replyToken ?? '', [
-        { type: 'text', text: 'เชื่อมต่อสำเร็จ 🎉 ลองพิมพ์: ปลาทู 40' },
-      ])
-    } else {
-      await deps.client.replyMessage(event.replyToken ?? '', [
-        { type: 'text', text: 'รหัสไม่ถูกต้องหรือหมดอายุ สร้างใหม่ที่เว็บได้เลย' },
-      ])
-    }
-    return
-  }
-  await deps.client.replyMessage(event.replyToken ?? '', [
-    { type: 'text', text: NOT_LINKED_TEXT + addFriendHint() },
-  ])
+async function deleteLast(userId: string, now: Date): Promise<string> {
+  const [latest] = await db
+    .select({ id: expense.id, title: expense.title, amount: expense.amount, createdAt: expense.createdAt })
+    .from(expense)
+    .where(and(eq(expense.userId, userId), isNull(expense.deletedAt)))
+    .orderBy(desc(expense.createdAt))
+    .limit(1)
+  if (!latest) return 'NO DATA: nothing to delete'
+  await db
+    .update(expense)
+    .set({ deletedAt: now, updatedAt: now })
+    .where(eq(expense.id, latest.id))
+  return `OK: deleted ${latest.title} ${formatAmount(latest.amount)}`
 }
 
-// -- linked: commands, then memo parsing
-async function handleLinked(
-  userId: string,
-  lineUserId: string,
-  text: string,
-  event: WebhookEvent,
-  deps: Required<HandlerDeps>,
-): Promise<void> {
-  const command = routeCommand(text)
-  if (command) {
-    await runCommand(userId, command.kind, 'scope' in command ? command.scope : undefined, event, deps)
-    return
-  }
-
-  const pending = readPending(userId, deps.now())
-  if (pending) {
-    await completePending(userId, lineUserId, pending, text, event, deps)
-    return
-  }
-
-  await parseAndSaveMemo(userId, lineUserId, text, event, deps)
-}
-
-async function runCommand(
-  userId: string,
-  kind: 'summary' | 'delete-last' | 'help',
-  scope: 'today' | 'month' | undefined,
-  event: WebhookEvent,
-  deps: Required<HandlerDeps>,
-): Promise<void> {
-  if (kind === 'help') {
-    await deps.client.replyMessage(event.replyToken ?? '', [{ type: 'text', text: HELP_TEXT }])
-    return
-  }
-  if (kind === 'delete-last') {
-    const row = await deps.store.latestLineExpense(userId)
-    if (!row) {
-      await deps.client.replyMessage(event.replyToken ?? '', [
-        { type: 'text', text: 'ยังไม่มีรายการที่จดผ่าน LINE ให้ลบครับ' },
-      ])
-      return
-    }
-    await deps.store.softDeleteExpense(row.id, userId)
-    await deps.client.replyMessage(event.replyToken ?? '', [
-      { type: 'text', text: `ลบแล้ว ✅ ${row.title} ฿${formatAmount(row.amount)}` },
-    ])
-    return
-  }
-  const summary = await deps.store.summary(userId, scope!)
-  const period = scope === 'today' ? 'วันนี้' : 'เดือนนี้'
-  const totalLine = `ใช้จ่ายรวม ฿${formatAmount(summary.total)} (${summary.count} รายการ)`
-  let topLine = ''
-  if (summary.top.length > 0) {
-    if (scope === 'today') {
-      const t = summary.top[0]
-      topLine = `\nหมวดสูงสุด: ${t.name} ฿${formatAmount(t.sum)}`
-    } else {
-      topLine = '\nหมวดสูงสุด 3 อันดับ: ' + summary.top.map((t) => `${t.name} ${formatAmount(t.sum)}`).join(' · ')
+async function runTool(tool: string, argsJson: string, userId: string, now: Date): Promise<string> {
+  let args: unknown = {}
+  if (argsJson) {
+    try {
+      args = JSON.parse(argsJson)
+    } catch {
+      return 'ERROR: arguments are not valid JSON'
     }
   }
-  const income = summary.income > 0 ? `\nรายรับ ฿${formatAmount(summary.income)}` : ''
-  await deps.client.replyMessage(event.replyToken ?? '', [
-    { type: 'text', text: `สรุป${period} 📊\n${totalLine}${topLine}${income}` },
-  ])
+  switch (tool) {
+    case 'add_expense':
+      return addExpense(args, userId, now)
+    case 'query_expenses':
+      return queryExpenses(args, userId, now)
+    case 'delete_last':
+      return deleteLast(userId, now)
+    default:
+      return `ERROR: unknown tool ${tool}`
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Memo parsing + saving
+// Apple Foundation Model client -> the local line-nlu Swift service.
 // ---------------------------------------------------------------------------
 
-type SaveResult = { parsed: ParsedItem[]; categories: { id: string; name: string }[] }
-
-async function parseViaLlm(
-  userId: string,
-  text: string,
-  deps: Required<HandlerDeps>,
-): Promise<{ memo: ParsedResult } | { error: string }> {
-  if (!allowLlmCall(userId, deps.now())) {
-    return { error: 'RATE' }
-  }
-  const categories = await deps.store.categories(userId)
-  try {
-    const memo = await deps.parser.parse(text, {
-      now: deps.now(),
-      timezone: defaultTimezone(),
-      userCategories: categories.map((c) => c.name),
-    })
-    return { memo: { ...memo, categories } }
-  } catch (error) {
-    const kind = error instanceof MemoParseError ? 'PARSE' : 'LLM'
-    return { error: kind }
-  }
-}
-
-type ParsedResult = {
-  items: ParsedItem[]
-  needsClarification: string | null
-  confidence: number
-  categories: { id: string; name: string }[]
-}
-
-// Map a parsed category NAME to the user's category id; close match only.
-function matchCategoryId(
-  name: string | null,
-  categories: { id: string; name: string }[],
-): string | null {
-  if (!name) return null
-  const target = normalizeText(name)
-  return categories.find((c) => normalizeText(c.name) === target)?.id ?? null
-}
-
-function replyTokenOf(event: WebhookEvent): string {
-  return event.replyToken ?? ''
-}
-
-async function parseAndSaveMemo(
-  userId: string,
-  lineUserId: string,
-  text: string,
-  event: WebhookEvent,
-  deps: Required<HandlerDeps>,
-): Promise<void> {
-  const ack = await deps.client.replyMessage(replyTokenOf(event), [
-    { type: 'text', text: 'กำลังจดให้ครับ ⏳' },
-  ])
-  // Ack first so LINE never sees a late reply; results arrive by push.
-  void ack
-
-  const parsed = await parseViaLlm(userId, text, deps)
-  if ('error' in parsed) {
-    await deps.store.finishEvent(event.id, false, parsed.error)
-    const msg =
-      parsed.error === 'RATE'
-        ? 'จดเยอะเกินไปแล้วในชั่วโมงนี้ ลองใหม่อีกครั้งภายหลังนะครับ 🙏'
-        : 'ขอโทษ จดไม่สำเร็จ ลองพิมพ์ใหม่อีกครั้งนะ'
-    await deps.client.pushMessage(lineUserId, [{ type: 'text', text: msg }])
-    return
-  }
-  await saveMemo(userId, lineUserId, parsed.memo, event, deps, text)
-}
-
-async function completePending(
-  userId: string,
-  lineUserId: string,
-  pending: Pending,
-  text: string,
-  event: WebhookEvent,
-  deps: Required<HandlerDeps>,
-): Promise<void> {
-  if (pending.action === 'edit' && pending.expenseId) {
-    const parsed = await parseViaLlm(userId, text, deps)
-    if ('error' in parsed) {
-      const msg =
-        parsed.error === 'RATE'
-          ? 'จดเยอะเกินไปแล้วในชั่วโมงนี้ ลองใหม่อีกครั้งภายหลังนะครับ 🙏'
-          : 'ขอโทษ จดไม่สำเร็จ ลองพิมพ์ใหม่อีกครั้งนะ'
-      await deps.client.replyMessage(replyTokenOf(event), [{ type: 'text', text: msg }])
-      return
-    }
-    const item = parsed.memo.items[0]
-    if (!item) {
-      await deps.client.replyMessage(replyTokenOf(event), [
-        { type: 'text', text: 'พิมพ์รายการใหม่ครับ เช่น: ปลาทู 40' },
-      ])
-      return
-    }
-    pendingState.delete(userId)
-    const categoryId = matchCategoryId(item.category, parsed.memo.categories)
-    await deps.store.replaceExpense(pending.expenseId, userId, {
-      title: item.note,
-      amount: item.amount,
-      type: item.type,
-      note: item.note,
-      categoryId,
-      occurredAt: occurredAtFor(item.date, defaultTimezone(), deps.now()),
-    }, text)
-    await deps.client.replyMessage(replyTokenOf(event), [
-      { type: 'text', text: `แก้ไขแล้ว ✅ ${item.note} ฿${formatAmount(item.amount)}` },
-    ])
-    return
-  }
-
-  // 'complete': the user just answered the amount question
-  const combined = `${pending.rawText ?? ''} ${text}`.trim()
-  await parseAndSaveMemo(userId, lineUserId, combined, event, deps)
-}
-
-async function saveMemo(
-  userId: string,
-  lineUserId: string,
-  memo: ParsedResult,
-  event: WebhookEvent,
-  deps: Required<HandlerDeps>,
-  rawText: string,
-): Promise<void> {
-  const { items, needsClarification, categories } = memo
-
-  if (items.length === 0) {
-    if (needsClarification) {
-      // Missing amount: keep a 5-minute pending so the next message completes it.
-      pendingState.set(userId, {
-        action: 'complete',
-        rawText,
-        expiresAt: deps.now().getTime() + PENDING_TTL_MS,
-      })
-      await deps.client.pushMessage(lineUserId, [
-        { type: 'text', text: needsClarification },
-      ])
-      return
-    }
-    // Greeting / chat with no expense meaning: friendly, nothing saved.
-    await deps.client.pushMessage(lineUserId, [
-      { type: 'text', text: 'พิมพ์แบบนี้เพื่อจดรายการครับ เช่น: ปลาทู 40 หรือ "ช่วยเหลือ" สำหรับคำสั่ง' },
-    ])
-    return
-  }
-
-  const rows = items.map((item) => ({
-    title: item.note,
-    amount: item.amount,
-    type: item.type,
-    note: item.note,
-    categoryId: matchCategoryId(item.category, categories),
-    occurredAt: occurredAtFor(item.date, defaultTimezone(), deps.now()),
-  }))
-  const saved = await deps.store.insertExpenses(userId, rows, rawText)
-
-  const today = todayInTz(defaultTimezone(), deps.now())
-  const messages: LineTextMessage[] = []
-  saved.forEach((row, index) => {
-    const item = items[index]
-    const catName = item && categories.find((c) => c.id === rows[index].categoryId)?.name
-    const when = item && item.date && item.date !== today ? String(item.date) : 'วันนี้'
-    const mark = rows[index].type === 'income' ? 'รับ' : 'จด'
-    const quick = quickRepliesFor(rows[index], row.id, categories, catName ?? null)
-    messages.push({
-      type: 'text',
-      text: `${mark}แล้ว ✅ ${row.title} ฿${formatAmount(row.amount)} · ${catName ?? 'ไม่ระบุหมวด'} · ${when}`,
-      quickReply: quick ? { items: quick } : undefined,
-    })
+async function callModel(date: string, history: string): Promise<Step> {
+  const base = process.env.LINE_NLU_URL ?? 'http://127.0.0.1:4002'
+  const res = await fetch(`${base}/respond`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ date, history }),
   })
-  await deps.client.pushMessage(lineUserId, messages)
-}
-
-function quickRepliesFor(
-  row: { categoryId: string | null },
-  expenseId: string,
-  categories: { id: string; name: string }[],
-  currentCategoryIdOrName: string | null,
-): { type: 'action'; action: { type: 'postback'; label: string; data: string; displayText?: string } }[] | null {
-  const items: { type: 'action'; action: { type: 'postback'; label: string; data: string; displayText?: string } }[] = [
-    { type: 'action', action: { type: 'postback', label: 'แก้ไข', data: `paytail:edit:${expenseId}` } },
-    { type: 'action', action: { type: 'postback', label: 'ลบ', data: `paytail:delete:${expenseId}` } },
-  ]
-  // Offer re-categorisation, up to 4 categories, only when the item has none.
-  if (!row.categoryId) {
-    const pool = categories.filter(
-      (c) => c.name !== currentCategoryIdOrName && !row.categoryId?.includes(c.id),
-    ).slice(0, 4)
-    for (const c of pool) {
-      items.push({
-        type: 'action',
-        action: { type: 'postback', label: c.name, data: `paytail:cat:${expenseId}:${c.id}` },
-      })
-    }
-  }
-  return items
+  if (!res.ok) throw new Error(`line-nlu service returned ${res.status}`)
+  return (await res.json()) as Step
 }
 
 // ---------------------------------------------------------------------------
-// Postback quick-reply actions
+// Orchestration: ack reply, then up to MAX_TOOL_CALLS tool turns, then a final
+// Thai reply. Every message, tool call and result is logged.
 // ---------------------------------------------------------------------------
 
-async function handlePostback(
-  event: WebhookEvent,
-  deps: { client: Client; store: LineStore },
-): Promise<void> {
+export async function processLineEvent(event: LineEvent, deps: LineDeps = {}): Promise<void> {
+  const {
+    client = { replyMessage },
+    callModel: call = callModel,
+    runTool: run = runTool,
+    userIdFor = envUserId,
+    now = () => new Date(),
+  } = deps
+  const replyToken = event.replyToken ?? ''
   const lineUserId = event.source?.userId ?? ''
-  if (!event.postback?.data || !lineUserId) return
-  const link = await deps.store.findLink(lineUserId)
-  if (!link) {
-    await deps.client.replyMessage(replyTokenOf(event), [
-      { type: 'text', text: 'ยังไม่ได้เชื่อมต่อบัญชีกับ LINE ครับ' },
-    ])
-    return
-  }
-  const [ns, action, rawId, categoryId] = event.postback.data.split(':')
-  if (ns !== 'paytail') return
-  const expenseId = rawId ?? ''
 
-  if (action === 'delete') {
-    // Ownership check: only this linked user's expense is visible.
-    if (!(await deps.store.getExpense(expenseId, link.userId))) {
-      await deps.client.replyMessage(replyTokenOf(event), [{ type: 'text', text: 'ไม่พบรายการครับ' }])
+  try {
+    if (event.type !== 'message' || event.message?.type !== 'text' || !replyToken) return
+    const text = event.message.text ?? ''
+    console.log(`[line] message from ${lineUserId}: ${text}`)
+
+    const userId = userIdFor(lineUserId)
+    if (!userId) {
+      await client.replyMessage(replyToken, [{ type: 'text', text: NOT_LINKED_TEXT }])
       return
     }
-    await deps.store.softDeleteExpense(expenseId, link.userId)
-    await deps.client.replyMessage(replyTokenOf(event), [{ type: 'text', text: 'ลบแล้ว ✅' }])
-    return
-  }
-  if (action === 'cat' && categoryId) {
-    if (!(await deps.store.getExpense(expenseId, link.userId))) {
-      await deps.client.replyMessage(replyTokenOf(event), [{ type: 'text', text: 'ไม่พบรายการครับ' }])
-      return
+
+    const tz = TIMEZONE()
+    const date = todayInTz(tz, now())
+    let history = `user: ${text}`
+    let final = 'เสร็จแล้วครับ'
+
+    for (let turn = 0; turn <= MAX_TOOL_CALLS; turn++) {
+      const step = await call(date, history)
+      if (!step.tool || turn === MAX_TOOL_CALLS) {
+        final = step.reply || final
+        break
+      }
+      const result = await run(step.tool, step.args, userId, now())
+      console.log(`[line] tool ${step.tool}: ${step.args} -> ${result}`)
+      history += `\nassistant: tool ${step.tool}(${step.args})\nresult: ${result}`
     }
-    await deps.store.setExpenseCategory(expenseId, link.userId, categoryId)
-    await deps.client.replyMessage(replyTokenOf(event), [{ type: 'text', text: 'เปลี่ยนหมวดแล้ว ✅' }])
-    return
-  }
-  if (action === 'edit') {
-    if (!(await deps.store.getExpense(expenseId, link.userId))) {
-      await deps.client.replyMessage(replyTokenOf(event), [{ type: 'text', text: 'ไม่พบรายการครับ' }])
-      return
-    }
-    pendingState.set(link.userId, {
-      action: 'edit',
-      expenseId,
-      expiresAt: Date.now() + PENDING_TTL_MS,
-    })
-    await deps.client.replyMessage(replyTokenOf(event), [
-      { type: 'text', text: 'พิมพ์รายการใหม่ครับ เช่น: ปลาทู 40' },
-    ])
-    return
+
+    console.log(`[line] reply: ${final}`)
+    await client.replyMessage(replyToken, [{ type: 'text', text: final }])
+  } catch (error) {
+    console.error('[line] failed:', error instanceof Error ? error.message : error)
+    await client.replyMessage(replyToken, [{ type: 'text', text: 'จดไม่สำเร็จ ลองใหม่นะ' }])
   }
 }

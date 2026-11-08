@@ -1,5 +1,3 @@
-import { hashLineUser } from './line-log'
-
 // LINE Messaging API client. Every call swallows errors (logs, keeps the app
 // alive) so a dead network can never crash the webhook. Retries once on 5xx:
 // LINE replies and pushes both fail silently and retryable over 5xx.
@@ -50,10 +48,10 @@ export async function replyMessage(replyToken: string, messages: LineMessage[]):
   return send('reply', { replyToken, messages })
 }
 
-// Push a message to a user outside the reply window (slow LLM parsing, follow-ups).
+// Push a message to a user outside the reply window (follow-ups).
 export async function pushMessage(lineUserId: string, messages: LineMessage[]): Promise<boolean> {
   if (!lineUserId) return false
   const ok = await send('push', { to: lineUserId, messages })
-  if (!ok) console.error('[line] push failed, userId:', hashLineUser(lineUserId))
+  if (!ok) console.error('[line] push failed')
   return ok
 }

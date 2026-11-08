@@ -1,317 +1,116 @@
 import assert from "node:assert/strict";
-import test, { beforeEach } from "node:test";
+import test from "node:test";
 
-// The handler's store is a pure interface; these tests drive it with memory so
-// no Postgres is needed. db/index.ts opens a client at import, so give it a
-// dummy URL first — app.test.ts does the same.
+// line-handler.ts imports @/db, which opens a client at import. Give it a dummy
+// URL first — like app.test.ts — so the module loads without a live Postgres.
+// No test below runs a query: tools are injected as fakes.
 process.env.DATABASE_URL ??= "postgres://paytail:paytail@localhost:5432/paytail";
 process.env.APP_TIMEZONE = "Asia/Bangkok";
 
-const { processLineEvent, resetLineRuntime } = await import("./line-handler");
-import type { LineStore, InsertableExpense } from "./line-event-store";
+const { processLineEvent } = await import("./line-handler");
+import type { Step } from "./line-handler";
 import type { LineMessage } from "./line-client";
-import type { MemoParser, ParsedMemo } from "@/lib/utils/memo-parser";
-
-type ExpenseRow = {
-  id: string;
-  userId: string;
-  title: string;
-  amount: number;
-  categoryId: string | null;
-  deletedAt: Date | null;
-};
-
-let seq = 0;
-const newId = () => `id-${++seq}`;
-
-class MemoryStore implements LineStore {
-  events = new Set<string>();
-  links = new Map<string, string>();
-  codes = new Map<string, { userId: string; expiresAt: Date; used?: boolean; code: string }>();
-  expenses: ExpenseRow[] = [];
-  catList = [
-    { id: "cat-food", name: "อาหาร" },
-    { id: "cat-shop", name: "ช้อปปิ้ง" },
-  ];
-  inserted: { userId: string; items: InsertableExpense[]; rawText: string }[] = [];
-  replaced: { id: string; userId: string; item: InsertableExpense }[] = [];
-  deleted: string[] = [];
-  setCat: [string, string][] = [];
-  summaries: string[] = [];
-
-  async beginEvent(id: string) {
-    if (this.events.has(id)) return "duplicate" as const;
-    this.events.add(id);
-    return "inserted" as const;
-  }
-  async finishEvent(_id?: string, _ok?: boolean) {}
-  async findLink(lineUserId: string) {
-    const u = this.links.get(lineUserId);
-    return u ? { userId: u } : null;
-  }
-  async findCode(code: string, now: Date) {
-    const c = this.codes.get(code.toUpperCase());
-    if (!c || c.used || c.expiresAt <= now) return null;
-    return { code: c.code, userId: c.userId };
-  }
-  async createLink(userId: string, lineUserId: string) {
-    this.links.set(lineUserId, userId);
-  }
-  async markCodeUsed(code: string) {
-    const c = this.codes.get(code.toUpperCase());
-    if (c) c.used = true;
-  }
-  async categories(userId: string) {
-    return this.catList;
-  }
-  async insertExpenses(
-    userId: string,
-    items: InsertableExpense[],
-    rawText: string,
-  ) {
-    this.inserted.push({ userId, items, rawText });
-    return items.map((i) => ({ id: newId(), title: i.title, amount: i.amount.toFixed(2) }));
-  }
-  async latestLineExpense(userId: string) {
-    const row = [...this.expenses].reverse().find((e) => e.userId === userId && !e.deletedAt);
-    return row ? { id: row.id, title: row.title, amount: String(row.amount) } : null;
-  }
-  async softDeleteExpense(id: string, userId: string) {
-    const e = this.expenses.find((x) => x.id === id && x.userId === userId);
-    if (!e) return false;
-    e.deletedAt = new Date();
-    this.deleted.push(id);
-    return true;
-  }
-  async getExpense(id: string, userId: string) {
-    const e = this.expenses.find((x) => x.id === id && x.userId === userId);
-    return e ? { id, title: e.title, amount: String(e.amount) } : null;
-  }
-  async setExpenseCategory(id: string, userId: string, categoryId: string) {
-    const e = this.expenses.find((x) => x.id === id && x.userId === userId);
-    if (!e) return false;
-    e.categoryId = categoryId;
-    this.setCat.push([id, categoryId]);
-    return true;
-  }
-  async replaceExpense(id: string, userId: string, item: InsertableExpense) {
-    this.replaced.push({ id, userId, item });
-    return true;
-  }
-  async summary() {
-    this.summaries.push("called");
-    return { total: 1200, income: 0, count: 3, top: [{ name: "อาหาร", sum: 800 }] };
-  }
-}
 
 class FakeClient {
-  replies: { text: string }[][] = [];
-  pushes: { userId: string; messages: { text: string }[] }[] = [];
-  async replyMessage(_token: string, messages: LineMessage[]) {
-    this.replies.push(messages as { text: string }[]);
-    return true;
-  }
-  async pushMessage(userId: string, messages: LineMessage[]) {
-    this.pushes.push({ userId, messages: messages as { text: string }[] });
+  replies: { token: string; text: string }[] = [];
+  async replyMessage(token: string, messages: LineMessage[]): Promise<boolean> {
+    this.replies.push({ token, text: messages[0].type === "text" ? messages[0].text : "" });
     return true;
   }
 }
 
-class FakeParser implements MemoParser {
-  queue: ParsedMemo[] = [];
-  calls: string[] = [];
-  async parse(text: string): Promise<ParsedMemo> {
-    this.calls.push(text);
-    const next = this.queue.shift();
-    if (!next) throw new Error("FakeParser: no queued response");
-    return next;
-  }
-}
-
-const textEvent = (text: string, userId = "U1", id = newId()) => ({
-  id,
-  type: "message",
+const textEvent = (text: string, userId = "U1", replyToken = "token") => ({
+  id: `evt-${Math.random()}`,
+  type: "message" as const,
   source: { userId },
-  replyToken: "token",
-  message: { id: newId(), type: "text", text },
-});
-const postbackEvent = (data: string, userId = "U1", id = newId()) => ({
-  id,
-  type: "postback",
-  source: { userId },
-  replyToken: "token",
-  postback: { data },
+  replyToken,
+  message: { id: `m-${Math.random()}`, type: "text", text },
 });
 
-beforeEach(() => resetLineRuntime());
-
-test("re-processes a duplicate event id only once (LINE retries)", async () => {
-  const store = new MemoryStore();
+test("ignores non-text and non-message events", async () => {
   const client = new FakeClient();
-  // Follow is reply-only (no LLM, no DB writes) so it is a clean probe.
-  const event = (id: string) => ({
-    id,
-    type: "follow" as const,
-    source: { userId: "U1" },
-    replyToken: "token",
-  });
-  await processLineEvent(event("evt-1"), { store, client });
+  const callModel = async () => ({ tool: "", args: "", reply: "ไม่ควรถูกเรียก" });
+  await processLineEvent({ id: "x", type: "message", replyToken: "t", source: { userId: "U1" }, message: { id: "m", type: "image" } }, { client, callModel });
+  await processLineEvent({ id: "x2", type: "follow", replyToken: "t", source: { userId: "U1" } }, { client, callModel });
+  await processLineEvent({ id: "x3", type: "message", replyToken: "", source: { userId: "U1" }, message: { id: "m", type: "text", text: "hi" } }, { client, callModel });
+  assert.equal(client.replies.length, 0);
+});
+
+test("unmapped line user gets the not-linked notice, model untouched", async () => {
+  const client = new FakeClient();
+  const callModel = async () => { throw new Error("must not be called") };
+  await processLineEvent(textEvent("ปลาทู 40"), { client, callModel, userIdFor: () => null });
   assert.equal(client.replies.length, 1);
-  await processLineEvent(event("evt-1"), { store, client });
-  assert.equal(client.replies.length, 1, "retried event must not reply again");
+  assert.match(client.replies[0].text, /ยังไม่ได้เชื่อมต่อ/);
 });
 
-test("links a user with a valid code", async () => {
-  const store = new MemoryStore();
-  store.codes.set("ABC234", { code: "ABC234", userId: "u1", expiresAt: new Date(Date.now() + 60_000) });
+test("single final reply without a tool call", async () => {
   const client = new FakeClient();
-  await processLineEvent(textEvent("ABC234"), { store, client });
-  assert.equal(store.links.get("U1"), "u1");
-  assert.equal((store.codes.get("ABC234") as { used?: boolean }).used, true);
-  assert.match(client.replies[0][0].text, /เชื่อมต่อสำเร็จ/);
+  const callModel = async () => ({ tool: "", args: "", reply: "สวัสดีครับ จะจดอะไรดีล่ะ" });
+  const runTool = async () => { throw new Error("must not be called") };
+  await processLineEvent(textEvent("สวัสดี"), { client, callModel, runTool, userIdFor: () => "u1" });
+  assert.equal(client.replies.length, 1);
+  assert.equal(client.replies[0].text, "สวัสดีครับ จะจดอะไรดีล่ะ");
 });
 
-test("rejects an expired code with the invalid message", async () => {
-  const store = new MemoryStore();
-  store.codes.set("ABC234", { code: "ABC234", userId: "u1", expiresAt: new Date(Date.now() - 1000) });
+test("tool result is fed back so the model can answer with it", async () => {
   const client = new FakeClient();
-  await processLineEvent(textEvent("ABC234"), { store, client });
-  assert.equal(store.links.has("U1"), false);
-  assert.match(client.replies[0][0].text, /รหัสไม่ถูกต้องหรือหมดอายุ/);
+  const calls: { date: string; history: string }[] = [];
+  const callModel = async (date: string, history: string): Promise<Step> => {
+    calls.push({ date, history });
+    if (calls.length === 1) return { tool: "query_expenses", args: '{"date_from":"2026-11-01","date_to":"2026-11-08"}', reply: "" };
+    return { tool: "", args: "", reply: "สัปดาห์นี้ใช้ไป 1,200 บาทครับ" };
+  };
+  const runTool = async (tool: string, argsJson: string) => {
+    assert.equal(tool, "query_expenses");
+    return `spent 1200, 3 entries; top: ปลาทู 400, ข้าว 350, กาแฟ 300`;
+  };
+  await processLineEvent(textEvent("สัปดาห์นี้ใช้เงินไปเท่าไหร่"), { client, callModel, runTool, userIdFor: () => "u1" });
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].history, /สัปดาห์นี้ใช้เงินไปเท่าไหร่/);
+  assert.match(calls[1].history, /result: spent 1200/);
+  assert.equal(client.replies[0].text, "สัปดาห์นี้ใช้ไป 1,200 บาทครับ");
 });
 
-test("rejects a reused (used) code", async () => {
-  const store = new MemoryStore();
-  store.codes.set("ABC234", { code: "ABC234", userId: "u1", expiresAt: new Date(Date.now() + 60_000), used: true });
+test("tool ERROR is fed back to the model for self-correction, no apology", async () => {
   const client = new FakeClient();
-  await processLineEvent(textEvent("ABC234"), { store, client });
-  assert.equal(store.links.has("U1"), false);
-  assert.match(client.replies[0][0].text, /รหัสไม่ถูกต้องหรือหมดอายุ/);
-});
-
-test("unlinked user sending other text gets instructions, not parsing", async () => {
-  const store = new MemoryStore();
-  const client = new FakeClient();
-  const parser = new FakeParser();
-  await processLineEvent(textEvent("สวัสดี"), { store, client, parser });
-  assert.match(client.replies[0][0].text, /เชื่อมต่อ/);
-  assert.equal(parser.calls.length, 0, "must not touch the parser when unlinked");
-  assert.equal(store.inserted.length, 0);
-});
-
-test("replies to audio/image with the only-text notice", async () => {
-  const client = new FakeClient();
-  await processLineEvent(
-    {
-      id: "evt-audio",
-      type: "message",
-      source: { userId: "U1" },
-      replyToken: "token",
-      message: { id: "m", type: "audio" },
-    },
-    { store: new MemoryStore(), client },
-  );
-  assert.match(client.replies[0][0].text, /รองรับข้อความอย่างเดียว/);
-});
-
-test("postback delete verifies ownership: another user's expense is refused", async () => {
-  const store = new MemoryStore();
-  store.links.set("U1", "u1");
-  store.expenses.push({ id: "exp-other", userId: "u2", title: "ของคนอื่น", amount: 100, categoryId: null, deletedAt: null });
-  const client = new FakeClient();
-  await processLineEvent(postbackEvent("paytail:delete:exp-other"), { store, client });
-  assert.match(client.replies[0][0].text, /ไม่พบรายการ/);
-  assert.equal(store.deleted.length, 0);
-});
-
-test("postback delete works on the linked user's own expense", async () => {
-  const store = new MemoryStore();
-  store.links.set("U1", "u1");
-  store.expenses.push({ id: "exp-own", userId: "u1", title: "ปลาทู", amount: 40, categoryId: null, deletedAt: null });
-  const client = new FakeClient();
-  await processLineEvent(postbackEvent("paytail:delete:exp-own"), { store, client });
-  assert.deepEqual(store.deleted, ["exp-own"]);
-  assert.match(client.replies[0][0].text, /ลบแล้ว ✅/);
-});
-
-test("memo path: acks, parses, saves atomically with category mapping", async () => {
-  const store = new MemoryStore();
-  store.links.set("U1", "u1");
-  const client = new FakeClient();
-  const parser = new FakeParser();
-  parser.queue.push({
-    items: [{ amount: 40, note: "ปลาทู", category: "อาหาร", type: "expense", date: null }],
-    needsClarification: null,
-    confidence: 1,
-  });
-  await processLineEvent(textEvent("ปลาทู 40"), { store, client, parser });
-  assert.equal(client.replies.length, 1, "fast ack via replyToken");
-  assert.match(client.replies[0][0].text, /กำลังจด/);
-  assert.equal(store.inserted.length, 1);
-  assert.equal(store.inserted[0].rawText, "ปลาทู 40");
-  assert.equal(store.inserted[0].items[0].categoryId, "cat-food");
-  assert.equal(store.inserted[0].items[0].amount, 40);
-  assert.match(client.pushes[0].messages[0].text, /จดแล้ว ✅ ปลาทู ฿40 · อาหาร/);
-});
-
-test("missing amount asks once, then the next message completes it", async () => {
-  const store = new MemoryStore();
-  store.links.set("U1", "u1");
-  const client = new FakeClient();
-  const parser = new FakeParser();
-  parser.queue.push({ items: [], needsClarification: "กี่บาทครับ?", confidence: 0.4 });
-  parser.queue.push({
-    items: [{ amount: 40, note: "ปลาทู", category: null, type: "expense", date: null }],
-    needsClarification: null,
-    confidence: 0.9,
-  });
-  await processLineEvent(textEvent("ปลาทู"), { store, client, parser });
-  assert.equal(store.inserted.length, 0, "nothing saved while amount is missing");
-  assert.match(client.pushes[0].messages[0].text, /กี่บาท/);
-
-  await processLineEvent(textEvent("40"), { store, client, parser });
-  assert.equal(store.inserted.length, 1);
-  assert.equal(parser.calls[1], "ปลาทู 40", "completion re-parses the combined memo");
-});
-
-test("LLM failure marks the event failed and apologises", async () => {
-  const store = new MemoryStore();
-  store.links.set("U1", "u1");
-  const client = new FakeClient();
-  const parser = new FakeParser(); // empty queue -> parse() throws
-  let failed = false;
-  class FailingStore extends MemoryStore {
-    async finishEvent(_id: string, ok?: boolean) {
-      if (ok === false) failed = true;
+  const histories: string[] = [];
+  const callModel = async (date: string, history: string): Promise<Step> => {
+    histories.push(history);
+    if (histories.length === 1) {
+      return { tool: "add_expense", args: '{"items":[{"amount":40,"note":"ปลาทู"}]}', reply: "" };
     }
-  }
-  const failingStore = new FailingStore();
-  failingStore.links.set("U1", "u1");
-  await processLineEvent(textEvent("ปลาทู 40"), {
-    store: failingStore,
-    client,
-    parser: (parser as unknown) as MemoParser,
-  });
-  assert.equal(failed, true);
-  assert.match(client.pushes[0].messages[0].text, /จดไม่สำเร็จ/);
+    return { tool: "", args: "", reply: "จดให้แล้วครับ" };
+  };
+  let calls = 0;
+  const runTool = async () => {
+    calls++;
+    return "ERROR: each item needs a positive number amount";
+  };
+  await processLineEvent(textEvent("ปลาทู"), { client, callModel, runTool, userIdFor: () => "u1" });
+  assert.equal(calls, 1);
+  assert.match(histories[0], /user: ปลาทู/);
+  assert.match(histories[1], /result: ERROR: each item needs a positive number amount/);
+  assert.equal(client.replies[0].text, "จดให้แล้วครับ", "error goes back to the model, not to the user");
 });
 
-test("delete-last soft-deletes the latest LINE expense", async () => {
-  const store = new MemoryStore();
-  store.links.set("U1", "u1");
-  store.expenses.push({ id: "exp-1", userId: "u1", title: "ปลาทู", amount: 40, categoryId: null, deletedAt: null });
+test("loop caps at MAX_TOOL_CALLS (=3) then forces a final reply", async () => {
   const client = new FakeClient();
-  await processLineEvent(textEvent("ลบล่าสุด"), { store, client });
-  assert.deepEqual(store.deleted, ["exp-1"]);
-  assert.match(client.replies[0][0].text, /ลบแล้ว ✅/);
+  let calls = 0;
+  const callModel = async (): Promise<Step> => {
+    calls++;
+    return { tool: "query_expenses", args: "{}", reply: "" };
+  };
+  const runTool = async () => "OK: fine";
+  await processLineEvent(textEvent("ย้ำ"), { client, callModel, runTool, userIdFor: () => "u1" });
+  assert.equal(calls, 4, "three tool turns, then one forced non-tool step");
+  assert.equal(client.replies.length, 1);
 });
 
-test("summary command replies from the store aggregate", async () => {
-  const store = new MemoryStore();
-  store.links.set("U1", "u1");
+test("model/client crash replies with the apology, not a direct throw", async () => {
   const client = new FakeClient();
-  await processLineEvent(textEvent("สรุปวันนี้"), { store, client });
-  assert.match(client.replies[0][0].text, /สรุปวันนี้/);
-  assert.match(client.replies[0][0].text, /฿1,200/);
-  assert.equal(store.summaries.length, 1);
+  const callModel = async () => { throw new Error("line-nlu down") };
+  await processLineEvent(textEvent("ปลาทู 40"), { client, callModel, userIdFor: () => "u1" });
+  assert.equal(client.replies.length, 1);
+  assert.equal(client.replies[0].text, "จดไม่สำเร็จ ลองใหม่นะ");
 });
