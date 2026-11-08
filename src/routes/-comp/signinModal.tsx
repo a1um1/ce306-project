@@ -1,11 +1,43 @@
-export const SignInModal = () => {
+import { authClient } from "@/lib/auth-client";
+import { Button } from "@/components/ui/Button";
+import { Logo } from "@/components/ui/Logo";
+import { Modal } from "@/components/ui/Modal";
+import styles from "./signinModal.module.css";
+import { GoogleLogo } from "@/components/logo/google";
+import { LineLogo } from "@/components/logo/line";
+
+type Props = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
+
+function signIn(provider: "google" | "line") {
+  return authClient.signIn.social({
+    provider,
+    callbackURL: `${window.location.origin}/dashboard`,
+    errorCallbackURL: window.location.origin,
+  });
+}
+
+export const SignInModal = ({ open, onOpenChange }: Props) => {
   return (
-    <div className="container mx-auto py-12 gap-4 flex">
-      <div>Mock Slip</div>
-      <div className="flex flex-col gap-4">
-        <h1 className="text-4xl font-bold">จดรายจ่ายอัตโนมัติ</h1>
-        <p className="text-2xl">แค่อัพโหลดสลิปโอนเงินระบบจะจดรายจ่ายอัตโนมัติ</p>
+    <Modal
+      open={open}
+      onOpenChange={onOpenChange}
+      width={600}
+      containerClassName={"px-12! py-12! rounded-2xl!"}
+    >
+      <h1 className="text-center mb-4 text-4xl font-bold">เริ่มจดรายจ่ายกัน</h1>
+      <div className={styles.actions}>
+        <Button variant="secondary" size="lg" fullWidth onClick={() => void signIn("google")}>
+          <GoogleLogo />
+          Sign in with Google
+        </Button>
+        <Button variant="line" size="lg" fullWidth onClick={() => void signIn("line")}>
+          <LineLogo />
+          Sign in with LINE
+        </Button>
       </div>
-    </div>
+    </Modal>
   );
 };

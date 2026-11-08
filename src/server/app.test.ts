@@ -8,6 +8,8 @@ process.env.BETTER_AUTH_URL ??= "http://localhost:3001";
 process.env.BETTER_AUTH_SECRET ??= "test-secret-test-secret-test-secret";
 process.env.GOOGLE_CLIENT_ID ??= "test-google-client-id";
 process.env.GOOGLE_CLIENT_SECRET ??= "test-google-client-secret";
+process.env.LINE_CLIENT_ID ??= "test-line-client-id";
+process.env.LINE_CLIENT_SECRET ??= "test-line-client-secret";
 
 // Contract tests: nothing below authenticates, so no query actually runs. The
 // placeholder keeps the app importable without a .env or a live Postgres (CI).

@@ -45,6 +45,20 @@
   background: #faf8f3;
 }
 
+.line {
+  border: 2px solid #06c755;
+  background: #06c755;
+  color: #fff;
+}
+
+.line:hover:not(:disabled):not(.disabled) {
+  filter: brightness(1.05);
+}
+
+.line:active:not(:disabled):not(.disabled) {
+  filter: brightness(0.95);
+}
+
 .ghost {
   border: 2px solid transparent;
   background: transparent;

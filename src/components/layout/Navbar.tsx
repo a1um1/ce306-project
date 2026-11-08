@@ -15,7 +15,7 @@ export function Navbar({ user, onManageCategories }: Props) {
 
   const signOut = async () => {
     await authClient.signOut();
-    await navigate({ to: "/signin" });
+    await navigate({ to: "/" });
   };
 
   return (

@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProtectedRouteRouteImport } from './routes/_protected/route'
-import { Route as SigninRouteImport } from './routes/signin'
 import { Route as ProtectedDashboardRouteImport } from './routes/_protected/dashboard'
 import { Route as ProtectedLabelRouteImport } from './routes/_protected/label'
 import { Route as ProtectedReaderRouteImport } from './routes/_protected/reader'
@@ -24,11 +23,6 @@ const IndexRoute = IndexRouteImport.update({
 } as any)
 const ProtectedRouteRoute = ProtectedRouteRouteImport.update({
   id: '/_protected',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SigninRoute = SigninRouteImport.update({
-  id: '/signin',
-  path: '/signin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProtectedDashboardRoute = ProtectedDashboardRouteImport.update({
@@ -54,7 +48,6 @@ const ProtectedTransactionsRoute = ProtectedTransactionsRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/signin': typeof SigninRoute
   '/dashboard': typeof ProtectedDashboardRoute
   '/label': typeof ProtectedLabelRoute
   '/reader': typeof ProtectedReaderRoute
@@ -62,7 +55,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/signin': typeof SigninRoute
   '/dashboard': typeof ProtectedDashboardRoute
   '/label': typeof ProtectedLabelRoute
   '/reader': typeof ProtectedReaderRoute
@@ -72,7 +64,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_protected': typeof ProtectedRouteRouteWithChildren
-  '/signin': typeof SigninRoute
   '/_protected/dashboard': typeof ProtectedDashboardRoute
   '/_protected/label': typeof ProtectedLabelRoute
   '/_protected/reader': typeof ProtectedReaderRoute
@@ -80,15 +71,13 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    '/' | '/signin' | '/dashboard' | '/label' | '/reader' | '/transactions'
+  fullPaths: '/' | '/dashboard' | '/label' | '/reader' | '/transactions'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/signin' | '/dashboard' | '/label' | '/reader' | '/transactions'
+  to: '/' | '/dashboard' | '/label' | '/reader' | '/transactions'
   id:
     | '__root__'
     | '/'
     | '/_protected'
-    | '/signin'
     | '/_protected/dashboard'
     | '/_protected/label'
     | '/_protected/reader'
@@ -98,7 +87,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ProtectedRouteRoute: typeof ProtectedRouteRouteWithChildren
-  SigninRoute: typeof SigninRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -115,13 +103,6 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof ProtectedRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/signin': {
-      id: '/signin'
-      path: '/signin'
-      fullPath: '/signin'
-      preLoaderRoute: typeof SigninRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_protected/dashboard': {
@@ -176,7 +157,6 @@ const ProtectedRouteRouteWithChildren = ProtectedRouteRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ProtectedRouteRoute: ProtectedRouteRouteWithChildren,
-  SigninRoute: SigninRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

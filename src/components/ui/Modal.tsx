@@ -1,33 +1,46 @@
-import { Dialog } from '@base-ui/react/dialog'
-import { X } from 'lucide-react'
-import type { ReactNode } from 'react'
-import styles from './Modal.module.css'
+import { Dialog } from "@base-ui/react/dialog";
+import { X } from "lucide-react";
+import type { ReactNode } from "react";
+import styles from "./Modal.module.css";
 
 type Props = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  title: string
-  children: ReactNode
-  width?: number
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title?: string;
+  children: ReactNode;
+  containerClassName?: string;
+  width?: number;
   /** When false, only the close button dismisses: outside press and Escape are ignored. */
-  dismissible?: boolean
-}
+  dismissible?: boolean;
+};
 
-export function Modal({ open, onOpenChange, title, children, width = 560, dismissible = true }: Props) {
+export function Modal({
+  open,
+  onOpenChange,
+  title,
+  children,
+  containerClassName,
+  width = 560,
+  dismissible = true,
+}: Props) {
   return (
     <Dialog.Root
       open={open}
       disablePointerDismissal={!dismissible}
       onOpenChange={(next, event) => {
-        if (!dismissible && !next && (event.reason === 'outside-press' || event.reason === 'escape-key')) {
-          return
+        if (
+          !dismissible &&
+          !next &&
+          (event.reason === "outside-press" || event.reason === "escape-key")
+        ) {
+          return;
         }
-        onOpenChange(next)
+        onOpenChange(next);
       }}
     >
       <Dialog.Portal>
         <Dialog.Backdrop className={styles.backdrop} />
-        <Dialog.Popup className={styles.popup} style={{ width }}>
+        <Dialog.Popup className={`${styles.popup} ${containerClassName || ""}`} style={{ width }}>
           <div className={styles.header}>
             <Dialog.Title className={styles.title}>{title}</Dialog.Title>
             <Dialog.Close className={styles.close} aria-label="ปิด">
@@ -38,5 +51,5 @@ export function Modal({ open, onOpenChange, title, children, width = 560, dismis
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>
-  )
+  );
 }

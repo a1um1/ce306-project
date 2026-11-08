@@ -93,9 +93,6 @@ export const FeatureComponent = () => {
         <div className="flex max-w-lg flex-col gap-4">
           <h1 className="text-4xl font-bold">จดรายจ่ายอัตโนมัติ</h1>
           <p className="text-2xl">แค่อัพโหลดสลิปโอนเงินระบบจะจดรายจ่ายอัตโนมัติ</p>
-          <p style={{ color: "var(--muted)" }}>
-            สลิปจากทุกธนาคารถูกอ่านและจัดเรียงให้อัตโนมัติ
-          </p>
         </div>
       </div>
     </section>

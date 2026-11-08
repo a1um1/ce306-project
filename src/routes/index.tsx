@@ -1,13 +1,17 @@
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ButtonLink } from "@/components/ui/ButtonLink";
+import { Button } from "@/components/ui/Button";
 import { Logo } from "@/components/ui/Logo";
 import { FeatureComponent } from "@/routes/-comp/feature";
+import { SignInModal } from "@/routes/-comp/signinModal";
 
 export const Route = createFileRoute("/")({
   component: RouteComponent,
 });
 
 function RouteComponent() {
+  const [signinOpen, setSigninOpen] = useState(false);
+
   return (
     <div>
       <header className="flex items-center justify-between px-4 py-2 fixed top-0 left-0 right-0 z-10">
@@ -22,24 +26,25 @@ function RouteComponent() {
           <Logo size="sm" />
         </Link>
 
-        <ButtonLink to="/signin" variant="secondary" size="md">
+        <Button variant="secondary" size="md" onClick={() => setSigninOpen(true)}>
           เข้าสู่ระบบ
-        </ButtonLink>
+        </Button>
       </header>
-      <div className="flex flex-col items-center justify-center h-[40rem] gap-4 bg-linear-0 from-orange-200 to-yellow-100-900">
+      <div className="flex flex-col items-center justify-center h-[calc(100dvh-10rem)] gap-4 bg-linear-0 from-orange-200 to-yellow-100-900">
         <div className="flex flex-col gap-4">
           <h1 className="text-7xl font-bold">มาจดรายจ่ายกานนนนน</h1>
           <div className="flex gap-4 flex-row flex-wrap">
-            <ButtonLink to="/signin" variant="secondary" size="lg">
+            <Button size="lg" onClick={() => setSigninOpen(true)}>
               เริ่มจดกันเลย!
-            </ButtonLink>
-            <ButtonLink to="/signin" variant="secondary" size="lg">
+            </Button>
+            <Button variant="line" size="lg" onClick={() => setSigninOpen(true)}>
               จดผ่าน Line ได้น้า
-            </ButtonLink>
+            </Button>
           </div>
         </div>
       </div>
       <FeatureComponent />
+      <SignInModal open={signinOpen} onOpenChange={setSigninOpen} />
     </div>
   );
 }
