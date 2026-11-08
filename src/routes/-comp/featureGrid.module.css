@@ -1,0 +1,202 @@
+.section {
+  position: relative;
+  z-index: 10;
+  padding: 2rem 0 6rem;
+}
+
+.card {
+  border-radius: 1.25rem;
+  border: 1px solid var(--border);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.06),
+    0 14px 28px -14px rgb(0 0 0 / 0.12);
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem 1.5rem;
+  min-height: 10rem;
+}
+
+.voice {
+  background: linear-gradient(135deg, #ffe0c7, #ffd2a8);
+}
+
+.hand {
+  background: linear-gradient(135deg, #e6dcff, #d6c6ff);
+}
+
+.chat {
+  background: linear-gradient(135deg, #d3f3df, #bdebd2);
+}
+
+/* ---- Mock UIs (top of each card) ---- */
+.mock {
+  width: 100%;
+  max-width: 16rem;
+  min-height: 7rem;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* voice player */
+.player {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  background: #fff;
+  border: 1px solid #e8e2d7;
+  border-radius: 1rem;
+  padding: 0.625rem 0.875rem;
+  box-shadow: 0 6px 16px -8px rgb(0 0 0 / 0.18);
+}
+
+.play {
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: var(--primary);
+  display: grid;
+  place-items: center;
+}
+
+.wave {
+  flex: 1;
+  height: 2.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 3px;
+}
+
+.wave i {
+  width: 4px;
+  border-radius: 999px;
+  background: var(--primary);
+}
+
+.time {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+/* handwritten paper */
+.paper {
+  width: 100%;
+  background: #fffdf6;
+  border: 1px solid #e8e2d7;
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem 1.25rem;
+  transform: rotate(-3deg);
+  box-shadow: 0 8px 20px -10px rgb(0 0 0 / 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.line {
+  margin: 0;
+  font-family: "Itim", cursive;
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+  color: #4a4a4a;
+}
+
+.noted {
+  position: relative;
+  width: fit-content;
+  color: #2c2c2c;
+}
+
+.noted::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: -0.1em;
+  bottom: 0.12em;
+  height: 0.35em;
+  background: linear-gradient(transparent 45%, #ffd166 45%, #ffd166 90%, transparent 90%);
+}
+
+/* chat bubbles */
+.chatMock {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.me,
+.you {
+  white-space: nowrap;
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 0.875rem;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  box-shadow: 0 6px 16px -10px rgb(0 0 0 / 0.2);
+}
+
+.me {
+  align-self: flex-start;
+  background: #fff;
+  border: 1px solid #e8e2d7;
+}
+
+.you {
+  align-self: flex-end;
+  background: var(--primary);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* ---- Card copy ---- */
+.copy {
+  width: 100%;
+  text-align: left;
+  border-top: 1px solid var(--border);
+  padding: 1.25rem 1.5rem 1.75rem;
+}
+
+.copy p {
+  margin: 0.5rem 0 0;
+  color: #5a5a5a;
+}
+
+.other {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.75rem 1.5rem;
+  font-size: 1.0625rem;
+  color: #333;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+}
+
+.pill svg {
+  color: var(--primary);
+}

@@ -3,6 +3,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/Button";
 import { Logo } from "@/components/ui/Logo";
 import { FeatureComponent } from "@/routes/-comp/feature";
+import { FeatureGrid } from "@/routes/-comp/featureGrid";
+import { Cta, Footer } from "@/routes/-comp/cta";
 import { SignInModal } from "@/routes/-comp/signinModal";
 
 export const Route = createFileRoute("/")({
@@ -44,6 +46,9 @@ function RouteComponent() {
         </div>
       </div>
       <FeatureComponent />
+      <FeatureGrid />
+      <Cta onSignIn={() => setSigninOpen(true)} />
+      <Footer />
       <SignInModal open={signinOpen} onOpenChange={setSigninOpen} />
     </div>
   );

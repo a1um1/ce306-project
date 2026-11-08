@@ -90,7 +90,7 @@ export const FeatureComponent = () => {
           ))}
         </div>
 
-        <div className="flex max-w-lg flex-col gap-4">
+        <div className="flex max-w-lg flex-col items-center gap-4 text-center md:items-start md:text-left">
           <h1 className="text-4xl font-bold">จดรายจ่ายอัตโนมัติ</h1>
           <p className="text-2xl">แค่อัพโหลดสลิปโอนเงินระบบจะจดรายจ่ายอัตโนมัติ</p>
         </div>
