@@ -1,12 +1,15 @@
 // LINE natural-language handler: text message -> Apple Foundation Model (via the
-// line-nlu Swift service) -> tools -> reply.
+// line-nlu Swift service) -> tools -> reply. An image message goes straight to
+// the slip reader (OCR), no model needed.
 // Single-item add saves immediately; a multi-item memo shows a flex confirm
 // card and only saves when the user taps "บันทึก" (postback).
 import { and, count, desc, eq, gte, ilike, isNull, lte, or, sql } from 'drizzle-orm'
 import { db } from '@/db'
 import { account, category, expense } from '@/db/schema'
 import { formatAmount } from '@/lib/utils/format'
-import { pushMessage, replyMessage, type Client } from './line-client'
+import type { SlipRead } from '@/lib/api/types'
+import { fetchImageData, pushMessage, replyMessage, type Client, type LineMessage } from './line-client'
+import { readSlipImages } from './slip-reader'
 
 export type LineEvent = {
   id: string
@@ -32,8 +35,10 @@ export type ExpenseRow = {
   note: string
   categoryId: string | null
   occurredAt: Date
-  source: 'line_text'
+  source: 'line_text' | 'line_slip'
   rawText: null
+  // slip transaction id (dedupe target); text-memo rows omit it
+  externalId?: string | null
 }
 
 export type LineDeps = {
@@ -44,6 +49,9 @@ export type LineDeps = {
   now?: () => Date
   insertRows?: (rows: ExpenseRow[]) => Promise<Array<{ title: string; amount: string }>>
   memoStore?: Map<string, PendingMemo>
+  fetchImage?: (messageId: string) => Promise<string | null>
+  readSlip?: (dataUrls: string[]) => Promise<Array<SlipRead | null>>
+  addSlip?: (row: ExpenseRow) => Promise<boolean>
 }
 
 // One memo awaiting the user's tap on its confirm card. id travels in the card's
@@ -63,22 +71,33 @@ const NOT_LINKED_TEXT =
   'ยังไม่พบการเชื่อมต่อบัญชี LINE กับ PayTail ครับ เข้าแอป > การตั้งค่า > เชื่อมต่อ LINE ก่อนเริ่มจดรายจ่ายได้เลย'
 const BRAND = '#fbb046' // website --primary
 
-const defaultClient: Pick<Client, 'replyMessage' | 'pushMessage'> = { replyMessage, pushMessage }
+const defaultClient: Pick<Client, 'replyMessage' | 'pushMessage' | 'fetchImageData'> = { replyMessage, pushMessage, fetchImageData }
 
 // Memos awaiting the user's "บันทึก" tap: lineUserId -> pending. Saved (or
 // dropped) on the postback, so nothing is written until the user confirms.
 // shortcut: in-memory, lost on restart; upgrade to a table if the box restarts often
 export const pendingMemos = new Map<string, PendingMemo>()
 
-// One branded flex card for any bot message: orange header, white text.
+// Short confirmations are plain text messages — a flex card is only worth the
+// weight when it carries buttons (the confirm card) or a long sentence
+// (not-linked notice, error reason).
+const plain = (text: string): LineMessage => ({ type: 'text', text })
+
+// One compact branded flex card for any bot message: small text on a soft
+// orange card with a thin orange border. Normal replies read normal-sized —
+// the big orange header is reserved for the actionable confirm card.
 function textFlex(text: string): unknown {
   return {
     type: 'bubble',
-    header: {
+    body: {
       type: 'box',
       layout: 'vertical',
-      backgroundColor: BRAND,
-      contents: [{ type: 'text', text, color: '#ffffff', weight: 'bold', size: 'md', wrap: true, align: 'center' }],
+      backgroundColor: '#fff7e8',
+      borderColor: BRAND,
+      borderWidth: 'light',
+      cornerRadius: 'sm',
+      paddingAll: 'sm',
+      contents: [{ type: 'text', text, size: 'sm', color: '#4a3500', wrap: true }],
     },
   }
 }
@@ -97,8 +116,15 @@ async function resolveUserId(lineUserId: string): Promise<string | null> {
     .from(account)
     .where(and(eq(account.providerId, 'line'), eq(account.accountId, lineUserId)))
     .limit(1)
-  if (row) return row.userId
-  if (process.env.LINE_USER_ID === lineUserId) return process.env.PAYTAIL_USER_ID ?? null
+  if (row) {
+    console.log(`[line] resolve: ${lineUserId} -> user ${row.userId} (line account link)`)
+    return row.userId
+  }
+  if (process.env.LINE_USER_ID === lineUserId) {
+    console.log(`[line] resolve: ${lineUserId} -> env fallback user ${process.env.PAYTAIL_USER_ID ?? '(unset)'}`)
+    return process.env.PAYTAIL_USER_ID ?? null
+  }
+  console.log(`[line] resolve: ${lineUserId} -> not linked, no env fallback`)
   return null
 }
 
@@ -185,6 +211,18 @@ async function insertRows(rows: ExpenseRow[]): Promise<Array<{ title: string; am
     .insert(expense)
     .values(rows)
     .returning({ title: expense.title, amount: expense.amount })
+}
+
+// Insert one slip read, deduped on (user_id, transaction_id) like QR imports.
+// Returns false when the slip was already recorded (another photo of the same
+// transfer) — the caller says so instead of double-saving.
+async function addSlip(row: ExpenseRow): Promise<boolean> {
+  const [inserted] = await db
+    .insert(expense)
+    .values(row)
+    .onConflictDoNothing({ target: [expense.userId, expense.externalId] })
+    .returning({ id: expense.id })
+  return Boolean(inserted)
 }
 
 type QueryRow = { title: string; amount: string; occurredAt: Date | null }
@@ -299,7 +337,7 @@ function memoConfirmFlex(rows: ExpenseRow[], id: string): unknown {
     spacing: 'sm',
     contents: [
       { type: 'text', text: r.title, flex: 2, size: 'sm', wrap: true },
-      { type: 'text', text: formatAmount(r.amount), flex: 1, size: 'sm', align: 'end' },
+      { type: 'text', text: `${formatAmount(r.amount)} บาท`, flex: 1, size: 'sm', align: 'end' },
     ],
   }))
   return {
@@ -340,10 +378,6 @@ function memoConfirmFlex(rows: ExpenseRow[], id: string): unknown {
   }
 }
 
-// Immediate processing feedback: the app replies this flex before parsing, so
-// the user sees the memo is being read instead of a silent wait for the push.
-const processingFlex = () => textFlex('กำลังอ่านเมมโม่…')
-
 // ---------------------------------------------------------------------------
 // Postback from a memo confirm card: save (insert the pending rows) or cancel.
 // ---------------------------------------------------------------------------
@@ -364,22 +398,77 @@ async function processPostback(
   // Acting on a card removes its pending memo; an old card (a newer memo or a
   // restart wiped the store) is a clean no-op, never a wrong save.
   if (!pending || pending.id !== id) {
-    if (replyToken) await client.replyMessage(replyToken, [{ type: 'flex', altText: 'การ์ดเก่าแล้ว', contents: textFlex('การ์ดใบนี้เก่าแล้ว ส่งเมมโมใหม่ได้เลยครับ') }])
+    if (replyToken) await client.replyMessage(replyToken, [plain('การ์ดใบนี้เก่าแล้ว ส่งเมมโมใหม่ได้เลยครับ')])
     return
   }
   memoStore.delete(lineUserId)
   if (action === 'cancel') {
-    if (replyToken) await client.replyMessage(replyToken, [{ type: 'flex', altText: 'ไม่จดแล้วครับ', contents: textFlex('ไม่จดแล้วครับ') }])
+    if (replyToken) await client.replyMessage(replyToken, [plain('ไม่จดแล้วครับ')])
     return
   }
   if (action === 'edit') {
-    if (replyToken) await client.replyMessage(replyToken, [{ type: 'flex', altText: 'โอเค ส่งเมมโมที่แก้แล้วมาได้เลยครับ', contents: textFlex('โอเค ส่งเมมโมที่แก้แล้วมาได้เลยครับ') }])
+    if (replyToken) await client.replyMessage(replyToken, [plain('โอเค ส่งเมมโมที่แก้แล้วมาได้เลยครับ')])
     return
   }
   const saved = await save(pending.rows)
-  const lines = saved.map((r) => `${r.title} ${formatAmount(r.amount)}`).join(', ')
-  const done = `บันทึกแล้วครับ: ${lines}`
-  if (replyToken) await client.replyMessage(replyToken, [{ type: 'flex', altText: done, contents: textFlex(done) }])
+  const lines = saved.map((r) => `${r.title} ${formatAmount(r.amount)} บาท`).join(', ')
+  if (replyToken) await client.replyMessage(replyToken, [plain(`บันทึกแล้วครับ: ${lines}`)])
+}
+
+// One photo from the chat -> slip reader -> a saved expense row, no model call.
+// A single transfer fits one slip, so it saves immediately (no confirm card).
+type SlipIo = {
+  fetchImage: (messageId: string) => Promise<string | null>
+  readSlip: (dataUrls: string[]) => Promise<Array<SlipRead | null>>
+  addSlip: (row: ExpenseRow) => Promise<boolean>
+  userIdFor: (lineUserId: string) => string | null | Promise<string | null>
+  now: () => Date
+}
+async function processSlipImage(
+  event: LineEvent,
+  client: Pick<Client, 'replyMessage' | 'pushMessage'>,
+  io: SlipIo,
+): Promise<void> {
+  const lineUserId = event.source?.userId ?? ''
+  const messageId = event.message?.id ?? ''
+  const push = async (text: string): Promise<void> => {
+    // Short slip confirmations are plain text; only the unlinked notice is a card.
+    await client.pushMessage(lineUserId, [text === NOT_LINKED_TEXT ? { type: 'flex', altText: text, contents: textFlex(text) } : plain(text)])
+  }
+
+  const userId = await io.userIdFor(lineUserId)
+  if (!userId) return push(NOT_LINKED_TEXT)
+
+  const dataUrl = await io.fetchImage(messageId)
+  if (!dataUrl) return push('อ่านรูปไม่ได้ครับ ลองส่งสลิปเป็นภาพอีกครั้ง')
+
+  let read: SlipRead | null = null
+  try {
+    ;[read] = await io.readSlip([dataUrl])
+  } catch {
+    read = null
+  }
+  // Same bar as QR imports: an amount plus a transaction id, else it is a guess.
+  if (!read || !(read.amount > 0) || !read.transactionId) return push('อ่านสลิปไม่เจอครับ ลองถ่ายให้ชัดขึ้นแล้วส่งใหม่ได้')
+
+  const row: ExpenseRow = {
+    id: crypto.randomUUID(),
+    userId,
+    title: read.recipient.name || read.title || read.transactionId,
+    payee: null,
+    amount: read.amount.toFixed(2),
+    type: 'expense',
+    note: '',
+    categoryId: null,
+    occurredAt: read.dateTime ? new Date(read.dateTime) : io.now(),
+    source: 'line_slip',
+    rawText: null,
+    externalId: read.transactionId,
+  }
+  const ok = await io.addSlip(row)
+  console.log(`[line] slip saved=${ok} user=${row.userId} amount=${row.amount} date=${row.occurredAt.toISOString()} txn=${row.externalId}`)
+  if (!ok) return push('สลิปนี้จดไว้แล้วครับ ไม่ต้องส่งซ้ำ')
+  return push(`บันทึกสลิปแล้วครับ: ${row.title} ${formatAmount(read.amount)} บาท`)
 }
 
 // ---------------------------------------------------------------------------
@@ -390,6 +479,16 @@ async function processPostback(
 // model runs can outlast the ~10s reply-token window.
 // ---------------------------------------------------------------------------
 
+// Hidden wait between bursts: a user dropping several slips at once arrives as
+// parallel webhook events. Run slip reads one at a time — the OCR service is
+// shared, and a wall of simultaneous POSTs makes it 429 the whole batch.
+let imageQueue: Promise<unknown> = Promise.resolve()
+async function queueImage(task: () => Promise<unknown>): Promise<void> {
+  const run = imageQueue.catch(() => undefined).then(task)
+  imageQueue = run.catch(() => undefined) // next task chains off this, not an error
+  await run // task errors surface to the caller's try/catch
+}
+
 export async function processLineEvent(event: LineEvent, deps: LineDeps = {}): Promise<void> {
   const {
     client = defaultClient,
@@ -399,6 +498,9 @@ export async function processLineEvent(event: LineEvent, deps: LineDeps = {}): P
     now = () => new Date(),
     insertRows: save = insertRows,
     memoStore = pendingMemos,
+    fetchImage = fetchImageData,
+    readSlip = readSlipImages,
+    addSlip: insertSlip = addSlip,
   } = deps
   const replyToken = event.replyToken ?? ''
   const lineUserId = event.source?.userId ?? ''
@@ -408,10 +510,14 @@ export async function processLineEvent(event: LineEvent, deps: LineDeps = {}): P
       await processPostback(event, client, save, memoStore)
       return
     }
+    if (event.type === 'message' && event.message?.type === 'image' && replyToken) {
+      // Queue: slip OCR is serialized so an image burst can't overload the reader.
+      await queueImage(() => processSlipImage(event, client, { fetchImage, readSlip, addSlip: insertSlip, userIdFor, now }))
+      return
+    }
     if (event.type !== 'message' || event.message?.type !== 'text' || !replyToken) return
     const text = event.message.text ?? ''
     console.log(`[line] message from ${lineUserId}: ${text}`)
-    await client.replyMessage(replyToken, [{ type: 'flex', altText: 'กำลังอ่านเมมโม่…', contents: processingFlex() }])
 
   const userId = await userIdFor(lineUserId)
   if (!userId) {
@@ -447,8 +553,8 @@ export async function processLineEvent(event: LineEvent, deps: LineDeps = {}): P
         }
         if (built.rows.length === 1) {
           const saved = await save(built.rows)
-          const text = saved.map((r) => `${r.title} ${formatAmount(r.amount)}`).join(', ')
-          await client.pushMessage(lineUserId, [{ type: 'flex', altText: `บันทึกแล้วครับ: ${text}`, contents: textFlex(`บันทึกแล้วครับ: ${text}`) }])
+          const text = saved.map((r) => `${r.title} ${formatAmount(r.amount)} บาท`).join(', ')
+          await client.pushMessage(lineUserId, [plain(`บันทึกแล้วครับ: ${text}`)])
         } else {
           const id = crypto.randomUUID().slice(0, 8)
           memoStore.set(lineUserId, { id, rows: built.rows })
@@ -462,7 +568,7 @@ export async function processLineEvent(event: LineEvent, deps: LineDeps = {}): P
     }
 
     console.log(`[line] reply: ${final}`)
-    await client.pushMessage(lineUserId, [{ type: 'flex', altText: final, contents: textFlex(final) }])
+    await client.pushMessage(lineUserId, [plain(final)])
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error)
     // Show the real cause on LINE and in the logs — the POC has one user, so

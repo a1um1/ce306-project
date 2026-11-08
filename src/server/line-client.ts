@@ -2,6 +2,7 @@
 // alive) so a dead network can never crash the webhook. Retries once on 5xx:
 // LINE replies and pushes both fail silently and retryable over 5xx.
 const MESSAGE_API = 'https://api.line.me/v2/bot/message'
+const CONTENT_API = 'https://api-data.line.me/v2/bot/message'
 // A reply token is only valid for ~10 seconds after the event lands.
 const MAX_ATTEMPTS = 2
 
@@ -13,7 +14,11 @@ export type LineTextMessage = {
 }
 export type LineMessage = LineTextMessage | { type: 'flex'; altText: string; contents: unknown }
 
-export type Client = { replyMessage: typeof replyMessage; pushMessage: typeof pushMessage }
+export type Client = {
+  replyMessage: typeof replyMessage
+  pushMessage: typeof pushMessage
+  fetchImageData: typeof fetchImageData
+}
 
 function token() {
   return process.env.LINE_CHANNEL_ACCESS_TOKEN
@@ -54,4 +59,29 @@ export async function pushMessage(lineUserId: string, messages: LineMessage[]): 
   const ok = await send(`${MESSAGE_API}/push`, { to: lineUserId, messages })
   if (!ok) console.error('[line] push failed')
   return ok
+}
+
+// Fetch a message image's bytes for the slip reader. LINE serves the raw JPEG
+// zero-padded to the original file size — trim the trailing zeros or OCR sees
+// a giant empty band. Content is only fetchable for a short window after the
+// event, so this must run before the model loop.
+export async function fetchImageData(messageId: string): Promise<string | null> {
+  const accessToken = token()
+  if (!accessToken) return null // not configured: dev without LINE
+  try {
+    const res = await fetch(`${CONTENT_API}/${messageId}/content`, {
+      headers: { authorization: `Bearer ${accessToken}` },
+    })
+    if (!res.ok) {
+      console.error(`[line] content fetch failed: ${res.status}`)
+      return null
+    }
+    const raw = new Uint8Array(await res.arrayBuffer())
+    let end = raw.length
+    while (end > 0 && raw[end - 1] === 0) end--
+    return `data:image/jpeg;base64,${Buffer.from(raw.subarray(0, end)).toString('base64')}`
+  } catch (error) {
+    console.error('[line] content fetch failed:', error instanceof Error ? error.message : error)
+    return null
+  }
 }

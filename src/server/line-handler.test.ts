@@ -11,6 +11,7 @@ process.env.APP_TIMEZONE = "Asia/Bangkok";
 const mod = await import("./line-handler");
 const { processLineEvent } = mod;
 import type { Step, ExpenseRow, PendingMemo } from "./line-handler";
+import type { SlipRead } from "@/lib/api/types";
 import type { LineMessage } from "./line-client";
 
 class FakeClient {
@@ -42,41 +43,49 @@ const postbackEvent = (data: string, userId = "U1") => ({
   postback: { data },
 });
 
-// Capture any pushed or replied message's visible text (flex header or plain).
+const imageEvent = (messageId = "img-1", userId = "U1") => ({
+  id: `evt-${Math.random()}`,
+  type: "message" as const,
+  source: { userId },
+  replyToken: "token",
+  message: { id: messageId, type: "image" as const },
+});
+
+// Capture any pushed or replied message's visible text (confirm header or
+// compact text-card body; plain text messages pass through).
 const firstText = (msg: LineMessage) => {
   if (msg.type === "text") return msg.text;
-  const header = (msg.contents as { header?: { contents?: { text?: string }[] } })?.header?.contents;
-  return header?.[0]?.text ?? "";
+  const c = msg.contents as {
+    header?: { contents?: { text?: string }[] };
+    body?: { contents: { text?: string }[] };
+  };
+  return c.header?.contents?.[0]?.text ?? c.body?.contents?.[0]?.text ?? "";
 };
 
-test("ignores non-text and non-message events", async () => {
+test("ignores non-text and non-image message events", async () => {
   const client = new FakeClient();
   const callModel = async () => ({ tool: "", args: "", reply: "ไม่ควรถูกเรียก" });
-  await processLineEvent({ id: "x", type: "message", replyToken: "t", source: { userId: "U1" }, message: { id: "m", type: "image" } }, { client, callModel });
+  await processLineEvent({ id: "x", type: "message", replyToken: "t", source: { userId: "U1" }, message: { id: "m", type: "audio" } }, { client, callModel });
   await processLineEvent({ id: "x2", type: "follow", replyToken: "t", source: { userId: "U1" } }, { client, callModel });
   await processLineEvent({ id: "x3", type: "message", replyToken: "", source: { userId: "U1" }, message: { id: "m", type: "text", text: "hi" } }, { client, callModel });
   assert.equal(client.replies.length + client.pushes.length, 0);
 });
 
-test("unmapped line user gets an ack then the not-linked notice, model untouched", async () => {
+test("unmapped line user gets the not-linked notice, model untouched", async () => {
   const client = new FakeClient();
   const callModel = async () => { throw new Error("must not be called") };
   await processLineEvent(textEvent("ปลาทู 40"), { client, callModel, userIdFor: () => null });
-  // A processing-ack flex is replied first, then the not-linked push.
-  assert.equal(client.replies.length, 1);
-  assert.equal(client.replies[0].messages[0].type, "flex");
+  assert.equal(client.replies.length, 0, "no ack — nothing queued for an ignorable event");
   assert.equal(client.pushes.length, 1);
   assert.match(firstText(client.pushes[0].messages[0]), /เชื่อมต่อ/);
 });
 
-test("single final reply without a tool call is pushed after an ack flex", async () => {
+test("single final reply without a tool call is pushed", async () => {
   const client = new FakeClient();
   const callModel = async () => ({ tool: "", args: "", reply: "สวัสดีครับ จะจดอะไรดีล่ะ" });
   const runTool = async () => { throw new Error("must not be called") };
   await processLineEvent(textEvent("สวัสดี"), { client, callModel, runTool, userIdFor: () => "u1" });
-  assert.equal(client.replies.length, 1, "processing ack flex replied first");
-  assert.equal(client.replies[0].messages[0].type, "flex");
-  assert.match(JSON.stringify(client.replies[0].messages[0]), /กำลังอ่านเมมโม่/);
+  assert.equal(client.replies.length, 0, "no ack flex — the push is the only message");
   assert.equal(client.pushes.length, 1);
   assert.equal(firstText(client.pushes[0].messages[0]), "สวัสดีครับ จะจดอะไรดีล่ะ");
 });
@@ -155,7 +164,7 @@ test("single-item add auto-saves, pushes confirmation, no flex", async () => {
   await processLineEvent(textEvent("ปลาทู 40"), { client, callModel, runTool, insertRows, userIdFor: () => "u1" });
   assert.equal(saved.length, 1);
   assert.equal(saved[0][0].title, "ปลาทู");
-  assert.equal(client.replies.length, 1, "processing ack flex only");
+  assert.equal(client.replies.length, 0, "no ack — the push is the only message");
   assert.equal(client.pushes.length, 1);
   assert.match(firstText(client.pushes[0].messages[0]), /บันทึกแล้วครับ/);
 });
@@ -247,4 +256,85 @@ test("non-memo postback data is ignored", async () => {
   const client = new FakeClient();
   await processLineEvent(postbackEvent("other:thing"), { client });
   assert.equal(client.replies.length + client.pushes.length, 0);
+});
+
+// --- image -> slip reader -> saved expense, no model call ---
+
+const FAKE_SLIP = {
+  amount: 1290,
+  dateTime: "2026-11-07T12:34:00Z",
+  transactionId: "SLIP-123",
+  title: "โอนเงิน",
+  recipient: { name: "ร้านข้าวมันไก่" },
+  sender: { name: "ฉัน" },
+  ocrText: "slip-ocr",
+} as const;
+
+test("image goes straight to the slip reader and saves one row, no model", async () => {
+  const client = new FakeClient();
+  const callModel = async () => { throw new Error("model must not be called for an image") };
+  let fetched = "";
+  const fetchImage = async (id: string) => { fetched = id; return "data:image/jpeg;base64,abc" };
+  const readSlip = async (dataUrls: string[]) => { assert.equal(dataUrls[0], "data:image/jpeg;base64,abc"); return [FAKE_SLIP as SlipRead] };
+  const added: ExpenseRow[] = [];
+  const addSlip = async (row: ExpenseRow) => { added.push(row); return true };
+  await processLineEvent(imageEvent("img-1"), { client, callModel, fetchImage, readSlip, addSlip, userIdFor: () => "u1" });
+  assert.equal(fetched, "img-1");
+  assert.equal(client.replies.length, 0, "no ack — the push is the only message");
+  assert.equal(added.length, 1);
+  assert.equal(added[0].title, "ร้านข้าวมันไก่");
+  assert.equal(added[0].amount, "1290.00");
+  assert.equal(added[0].source, "line_slip");
+  assert.equal(added[0].externalId, "SLIP-123");
+  assert.equal(added[0].userId, "u1");
+  assert.equal(client.pushes.length, 1);
+  assert.match(firstText(client.pushes[0].messages[0]), /บันทึกสลิปแล้ว/);
+});
+
+test("slip reader returns null -> told to retake, nothing saved", async () => {
+  const client = new FakeClient();
+  const addSlip = async () => { throw new Error("must not be called") };
+  const fetchImage = async () => "data:image/jpeg;base64,abc";
+  await processLineEvent(imageEvent(), { client, fetchImage, readSlip: async () => [null], addSlip, userIdFor: () => "u1" });
+  assert.equal(client.pushes.length, 1);
+  assert.match(firstText(client.pushes[0].messages[0]), /อ่านสลิปไม่เจอ/);
+  assert.equal(client.replies.length, 0);
+});
+
+test("image cannot be downloaded -> told so, nothing saved", async () => {
+  const client = new FakeClient();
+  const readSlip = async () => { throw new Error("must not be called") };
+  await processLineEvent(imageEvent(), { client, fetchImage: async () => null, readSlip, userIdFor: () => "u1" });
+  assert.equal(client.pushes.length, 1);
+  assert.match(firstText(client.pushes[0].messages[0]), /อ่านรูปไม่ได้/);
+});
+
+test("re-sent slip (same transaction id) is deduped, not double-saved", async () => {
+  const client = new FakeClient();
+  const addSlip = async () => false;
+  const fetchImage = async () => "data:image/jpeg;base64,abc";
+  await processLineEvent(imageEvent(), { client, fetchImage, readSlip: async () => [FAKE_SLIP as SlipRead], addSlip, userIdFor: () => "u1" });
+  assert.equal(client.pushes.length, 1);
+  assert.match(firstText(client.pushes[0].messages[0]), /จดไว้แล้ว/);
+});
+
+test("an image burst runs slip OCR one at a time, never in parallel", async () => {
+  const active = { n: 0, peak: 0 };
+  const readSlip = async () => {
+    active.n++;
+    active.peak = Math.max(active.peak, active.n);
+    await new Promise((r) => setTimeout(r, 5));
+    active.n--;
+    return [FAKE_SLIP as SlipRead];
+  };
+  const addSlip = async () => true;
+  const client = new FakeClient();
+  // Both events land "at once" (parallel fire-and-forget webhook events).
+  await Promise.all([
+    processLineEvent(imageEvent("a"), { client, fetchImage: async () => "a", readSlip, addSlip, userIdFor: () => "u1" }),
+    processLineEvent(imageEvent("b"), { client, fetchImage: async () => "b", readSlip, addSlip, userIdFor: () => "u1" }),
+  ]);
+  assert.equal(active.n, 0);
+  assert.equal(active.peak, 1, "serialized: the OCR service never sees overlapping calls");
+  assert.equal(client.pushes.length, 2, "both slips still get their own result");
 });
