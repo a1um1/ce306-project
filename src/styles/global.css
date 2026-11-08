@@ -1,3 +1,5 @@
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@100;200;300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
 :root {
@@ -30,7 +32,7 @@ body {
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: "Google Sans", "Google Sans Text", ui-sans-serif, system-ui, -apple-system,
+  font-family: "IBM Plex Sans Thai", ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
 }

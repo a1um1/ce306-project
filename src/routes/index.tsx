@@ -26,12 +26,12 @@ function RouteComponent() {
           เข้าสู่ระบบ
         </ButtonLink>
       </header>
-      <div className="flex flex-col items-center justify-center h-[40rem] gap-4 bg-linear-0 from-indigo-950 to-blue-900 text-white">
+      <div className="flex flex-col items-center justify-center h-[40rem] gap-4 bg-linear-0 from-orange-200 to-yellow-100-900">
         <div className="flex flex-col gap-4">
           <h1 className="text-7xl font-bold">มาจดรายจ่ายกานนนนน</h1>
           <div className="flex gap-4 flex-row flex-wrap">
             <ButtonLink to="/signin" variant="secondary" size="lg">
-              จดกานน
+              เริ่มจดกันเลย!
             </ButtonLink>
             <ButtonLink to="/signin" variant="secondary" size="lg">
               จดผ่าน Line ได้น้า
