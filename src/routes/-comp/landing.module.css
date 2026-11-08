@@ -1,0 +1,89 @@
+/* ---- Header ---- */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  height: 72px;
+  transition: background-color 0.2s ease, backdrop-filter 0.2s ease;
+}
+
+.scrolled {
+  background: rgb(255 251 243 / 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 1px 0 rgb(0 0 0 / 0.06);
+}
+
+/* ---- Hero band (peach gradient, hard bottom edge) ---- */
+.hero {
+  display: flex;
+  align-items: center;
+  padding-block: clamp(120px, 18vh, 200px) 170px; /* extra bottom room for the slip overlap */
+  background: linear-gradient(115deg, #fed7aa 0%, #fef3c7 40%, #fed7aa 70%, #fef3c7 100%);
+  background-size: 200% 200%;
+  background-position: 0% 50%;
+  animation: hero-drift 20s ease-in-out infinite alternate;
+}
+
+/* Subtle peach drift; killed by the global prefers-reduced-motion rule. */
+@keyframes hero-drift {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 100% 50%;
+  }
+}
+
+.heroInner {
+  margin-inline: auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-4);
+}
+
+.heroTitle {
+  margin: 0;
+  font-size: clamp(44px, 8vw, 96px);
+  line-height: 1.1;
+  font-weight: 700;
+  text-wrap: balance;
+}
+
+/* One inline-block per character so each can rise independently. */
+.heroChar {
+  display: inline-block;
+  will-change: transform, opacity;
+}
+
+.heroCta {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-1);
+}
+
+.ctaBtn {
+  min-width: 220px;
+}
+
+@media (max-width: 767px) {
+  .hero {
+    padding-block: clamp(88px, 14vh, 120px) 160px;
+  }
+
+  .heroCta {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .ctaBtn {
+    width: 100%;
+    min-width: 0;
+  }
+}

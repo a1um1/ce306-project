@@ -1,57 +1,208 @@
 .section {
   position: relative;
   z-index: 10;
-	margin-top: -6rem;
-
-  padding-bottom: 10rem;
+  padding-block: var(--space-5);
 }
 
-.deck {
-  position: relative;
-  flex: 0 0 auto;
-  width: 44rem;
-  max-width: 100%;
-  height: 26rem;
+/* Two-column showcase inside the shared container. */
+.grid {
+  max-width: 1200px;
   margin-inline: auto;
+  padding-inline: clamp(16px, 4vw, 40px);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: var(--space-5);
 }
 
-.card {
+/* ---- Text column ---- */
+.copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(32px, 4vw, 48px);
+  font-weight: 800;
+  line-height: 1.2;
+  text-wrap: balance;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.sub {
+  margin: var(--space-2) 0 0;
+  font-size: 20px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  max-width: 26ch;
+  text-wrap: balance;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.try {
+  margin-top: var(--space-2);
+  display: inline-block;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.try:hover {
+  text-decoration: underline;
+}
+
+/* Slip deck (straddles the hero band above) —
+   .slot centers each card in the pile; .card carries the fan-out transform. */
+.deck {
+  --card-w: 9rem;
+  --card-h: 11.7rem;
+  position: relative;
+  width: 90%;
+  margin-inline: auto;
+  height: 17rem;
+}
+
+.slot {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 20rem;
-  height: 25.5rem;
-  margin: -9.75rem 0 0 -7.5rem;
+  width: var(--card-w);
+  height: var(--card-h);
+  margin: calc(var(--card-h) / -2) 0 0 calc(var(--card-w) / -2);
+}
+
+.card {
+  position: relative;
+  width: 100%;
+  height: 100%;
   border-radius: 0.75rem;
   background: var(--surface);
   box-shadow:
     0 1px 2px rgb(0 0 0 / 0.08),
     0 18px 36px -12px rgb(0 0 0 / 0.1);
-  will-change: transform;
-	border-radius: .5rem;
-	overflow: hidden;
+  overflow: hidden;
 }
 
 .card img {
   display: block;
   width: 100%;
   height: 100%;
-	object-fit: cover;
+  object-fit: cover;
 }
 
-@media (max-width: 640px) {
-  .section {
-    margin-top: -6rem;
-  }
+/* Placeholder skeleton bars covering the front slip's body text. */
+.bars {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 42%;
+  display: flex;
+  flex-direction: column;
+  gap: 8%;
+  pointer-events: none;
+}
 
+.bars i {
+  height: 8%;
+  min-height: 6px;
+  border-radius: 4px;
+  background: #e7e1d6;
+}
+
+.bars i:nth-child(1) {
+  width: 55%;
+}
+
+.bars i:nth-child(2) {
+  width: 72%;
+}
+
+.bars i:nth-child(3) {
+  width: 46%;
+}
+
+/* Translucent scan line across the front slip. */
+.scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 14%;
+  background: linear-gradient(180deg, transparent, rgb(255 255 255 / 0.55), transparent);
+  pointer-events: none;
+}
+
+/* Green check badge that pops after the scan passes. */
+.check {
+  position: absolute;
+  right: 6%;
+  bottom: 22%;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--line);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+  box-shadow: 0 4px 10px -4px rgb(0 0 0 / 0.35);
+  pointer-events: none;
+}
+
+@media (min-width: 768px) {
+  /* Slide the deck up into the peach band; keep it inside the column otherwise. */
   .deck {
+    margin-top: -140px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .deck {
+    --card-w: 13rem;
+    --card-h: 16.58rem;
     width: 100%;
-    height: 17rem;
+    height: 19rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .deck {
+    --card-w: 20rem;
+    --card-h: 25.5rem;
+    width: min(34rem, 100%);
+    height: 26rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+}
+
+/* Reduced-motion users see the pile at rest, even without JS. */
+@media (prefers-reduced-motion: reduce) {
+  .slot,
+  .card {
+    opacity: 1 !important;
   }
 
-  .card {
-    width: 9rem;
-    height: 11.7rem;
-    margin: -5.85rem 0 0 -4.5rem;
+  .scan {
+    display: none;
+  }
+
+  .bars {
+    opacity: 0 !important;
+  }
+
+  .check {
+    opacity: 1 !important;
+    transform: scale(1) !important;
   }
 }

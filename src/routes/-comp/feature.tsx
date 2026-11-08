@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { motion, useReducedMotion, useScroll, useTransform, type MotionValue } from "motion/react";
+import {
+  motion,
+  useInView,
+  useReducedMotion,
+  useScroll,
+  useTransform,
+  type MotionValue,
+} from "motion/react";
 import styles from "./feature.module.css";
 
 const SLIPS = [
@@ -19,82 +26,184 @@ const PILE = [
   { x: 2, y: 14, rotate: -6, scale: 0.95 },
 ];
 
-const MOBILE = "(max-width: 640px)";
+// Last slip lands ~ (0.7s + 4 * 0.12s stagger); scan starts then.
+const LAND_MS = 1250;
+const SCAN_MS = 900;
 
-function useIsMobile() {
-  // Start false so server and client markup match; the effect corrects it.
-  const [mobile, setMobile] = useState(false);
+const EASE = [0.2, 0.8, 0.2, 1] as const;
+const SPREAD = 50;
+
+export const FeatureComponent = () => {
+  const deckRef = useRef<HTMLDivElement>(null);
+  const inView = useInView(deckRef, { amount: 0.35, once: true });
+  const reduced = useReducedMotion();
+
+  // Fan-out as the stack crosses the viewport; fixed at rest spread if reduced.
+  const { scrollYProgress } = useScroll({
+    target: deckRef,
+    offset: ["start end", "center 60%"],
+  });
+  const progress = useTransform(scrollYProgress, (v) => {
+    if (reduced) return 1;
+    const t = Math.min(1, Math.max(0, v));
+    return t * t * (3 - 2 * t);
+  });
+
+  // Random ±14° drop rotation, generated once on the client only
+  // (keeps SSR HTML stable; the deck is decorative/aria-hidden).
+  const [rot, setRot] = useState<number[]>([]);
+  const ready = rot.length === SLIPS.length;
+
+  // 1 = dropping, 2 = scanning, 3 = done. Replays on re-enter.
+  const [phase, setPhase] = useState(0);
+
   useEffect(() => {
-    const mq = matchMedia(MOBILE);
-    const onChange = () => setMobile(mq.matches);
-    onChange();
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    setRot(SLIPS.map(() => Math.round((Math.random() * 28 - 14) * 10) / 10));
   }, []);
-  return mobile;
-}
+
+  useEffect(() => {
+    if (reduced) {
+      setPhase(3);
+      return;
+    }
+    if (inView && ready) {
+      setPhase(1);
+      const t1 = setTimeout(() => setPhase(2), LAND_MS);
+      const t2 = setTimeout(() => setPhase(3), LAND_MS + SCAN_MS);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+        setPhase(0);
+      };
+    }
+    setPhase(0);
+  }, [inView, reduced, ready]);
+
+  return (
+    <section id="showcase" className={styles.section}>
+      <div className={styles.grid}>
+        <motion.div
+          className={styles.copy}
+          initial={reduced ? false : { x: 24, opacity: 0 }}
+          animate={phase >= 1 ? { x: 0, opacity: 1 } : { x: 24, opacity: 0 }}
+          transition={reduced ? { duration: 0 } : { duration: 0.5, delay: 0.1, ease: "easeOut" }}
+        >
+          <h2 className={styles.title}>จดรายจ่ายอัตโนมัติ</h2>
+          <p className={styles.sub}>
+            แค่อัพโหลดสลิปโอนเงินระบบจะจดรายจ่ายอัตโนมัติ
+          </p>
+          <a className={styles.try} href="#features">
+            ลองเลย →
+          </a>
+        </motion.div>
+
+        <div
+          ref={deckRef}
+          className={styles.deck}
+          aria-hidden="true"
+          aria-label="ตัวอย่างสลิปโอนเงิน"
+        >
+          {SLIPS.map((slip, i) => (
+            <Slip
+              key={slip.bank}
+              src={slip.src}
+              i={i}
+              phase={phase}
+              rot={rot[i] ?? 0}
+              progress={progress}
+              reduced={!!reduced}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
 
 const Slip = ({
   src,
-  bank,
   i,
+  phase,
+  rot,
   progress,
-  spread,
+  reduced,
 }: {
   src: string;
-  bank: string;
   i: number;
+  phase: number;
+  rot: number;
   progress: MotionValue<number>;
-  spread: number;
+  reduced: boolean;
 }) => {
   const d = i - (SLIPS.length - 1) / 2;
   const ad = Math.abs(d);
   const pile = PILE[i];
-  // Stagger the sort so cards land one after another.
   const range = [i * 0.05, 1];
-  const x = useTransform(progress, range, [pile.x, d * spread]);
-  const y = useTransform(progress, range, [pile.y, ad * ad * 14]);
+  const x = useTransform(progress, range, [pile.x, d * SPREAD]);
+  const y = useTransform(progress, range, [pile.y, ad * ad * 16]);
   const rotate = useTransform(progress, range, [pile.rotate, d * 9]);
   const scale = useTransform(progress, range, [pile.scale, 1]);
 
   return (
     <motion.div
-      className={styles.card}
-      style={{ x, y, rotate, scale, zIndex: 10 - Math.round(ad * 2) }}
+      className={styles.slot}
+      style={{ zIndex: 10 - Math.round(ad * 2) }}
+      initial={reduced ? false : { y: -120, opacity: 0, rotate: rot }}
+      animate={
+        phase >= 1
+          ? { y: 0, opacity: 1, rotate: 0 }
+          : { y: -120, opacity: 0, rotate: rot }
+      }
+      transition={
+        reduced || phase < 1
+          ? { duration: 0 }
+          : { duration: 0.7, delay: i * 0.12, ease: EASE }
+      }
     >
-      <img src={src} alt={`สลิป ${bank}`} />
+      {/* Fan lives on the inner card so the drop can't fight it. */}
+      <motion.div className={styles.card} style={{ x, y, rotate, scale }}>
+        <img src={src} alt="" />
+        {i === SLIPS.length - 1 && (
+          <>
+            {/* Placeholder bars over the front slip's body text. */}
+            <motion.div
+              className={styles.bars}
+              animate={phase >= 3 ? { opacity: 0 } : { opacity: 1 }}
+              transition={reduced ? { duration: 0 } : { duration: 0.4 }}
+            >
+              <i />
+              <i />
+              <i />
+            </motion.div>
+            {/* Scan line sweeping the front slip, fired after the drops land. */}
+            <motion.div
+              className={styles.scan}
+              initial={{ top: "0%", opacity: 0 }}
+              animate={
+                phase === 2
+                  ? { top: ["0%", "100%"], opacity: [0, 1, 1, 0] }
+                  : phase >= 3
+                    ? { top: "100%", opacity: 0 }
+                    : { top: "0%", opacity: 0 }
+              }
+              transition={reduced ? { duration: 0 } : { duration: 0.9, ease: "easeInOut" }}
+            />
+            {/* Green check badge, appears once the scan has passed. */}
+            <motion.div
+              className={styles.check}
+              initial={reduced ? { scale: 1, opacity: 1 } : { scale: 0.6, opacity: 0 }}
+              animate={phase >= 3 ? { scale: 1, opacity: 1 } : { scale: 0.6, opacity: 0 }}
+              transition={
+                reduced
+                  ? { duration: 0 }
+                  : { type: "spring", stiffness: 400, damping: 16, delay: 0.1 }
+              }
+            >
+              ✓
+            </motion.div>
+          </>
+        )}
+      </motion.div>
     </motion.div>
-  );
-};
-
-export const FeatureComponent = () => {
-  const deckRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: deckRef,
-    offset: ["start end", "center 60%"],
-  });
-  const reduceMotion = useReducedMotion();
-  const progress = useTransform(scrollYProgress, (v) => {
-    if (reduceMotion) return 1;
-    const t = Math.min(1, Math.max(0, v));
-    return t * t * (3 - 2 * t);
-  });
-  const spread = useIsMobile() ? 48 : 90;
-
-  return (
-    <section className={styles.section}>
-      <div className="container mx-auto flex flex-col items-center gap-12 px-4 md:flex-row md:gap-16">
-        <div ref={deckRef} className={styles.deck} aria-label="ตัวอย่างสลิปโอนเงิน">
-          {SLIPS.map((slip, i) => (
-            <Slip key={slip.bank} {...slip} i={i} progress={progress} spread={spread} />
-          ))}
-        </div>
-
-        <div className="flex max-w-lg flex-col items-center gap-4 text-center md:items-start md:text-left">
-          <h1 className="text-4xl font-bold">จดรายจ่ายอัตโนมัติ</h1>
-          <p className="text-2xl">แค่อัพโหลดสลิปโอนเงินระบบจะจดรายจ่ายอัตโนมัติ</p>
-        </div>
-      </div>
-    </section>
   );
 };

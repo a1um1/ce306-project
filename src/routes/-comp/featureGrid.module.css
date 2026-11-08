@@ -1,27 +1,44 @@
 .section {
   position: relative;
   z-index: 10;
-  padding: 2rem 0 6rem;
+  /* 80px gap below the showcase; section bottom keeps the 96px rhythm. */
+  margin-top: 80px;
+  padding-bottom: var(--space-6);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+  align-items: stretch;
 }
 
 .card {
-  border-radius: 1.25rem;
+  border-radius: var(--radius-card);
   border: 1px solid var(--border);
   box-shadow:
     0 1px 2px rgb(0 0 0 / 0.06),
     0 14px 28px -14px rgb(0 0 0 / 0.12);
-  background: #fff;
+  background: var(--surface);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: transform 200ms ease-out, box-shadow 200ms ease-out;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 4px 12px rgb(0 0 0 / 0.08),
+    0 24px 48px -16px rgb(0 0 0 / 0.18);
 }
 
 .visual {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2rem 1.5rem 1.5rem;
-  min-height: 10rem;
+  padding: 1.5rem;
+  aspect-ratio: 16 / 9;
 }
 
 .voice {
@@ -47,7 +64,7 @@
   justify-content: center;
 }
 
-/* voice player */
+/* ---- Voice mock ---- */
 .player {
   width: 100%;
   display: flex;
@@ -70,6 +87,17 @@
   place-items: center;
 }
 
+/* Play button pulses slowly while the card is on screen (paused otherwise). */
+@keyframes play-pulse {
+  to {
+    transform: scale(1.08);
+  }
+}
+
+.on .play {
+  animation: play-pulse 1.6s ease-in-out infinite alternate;
+}
+
 .wave {
   flex: 1;
   height: 2.25rem;
@@ -85,14 +113,28 @@
   background: var(--primary);
 }
 
+/* Waveform bars bob with per-bar stagger while on screen. */
+@keyframes wave-bounce {
+  to {
+    transform: scaleY(0.4);
+  }
+}
+
+.on .wave i {
+  transform-origin: center;
+  animation: wave-bounce 0.55s ease-in-out infinite alternate;
+  animation-delay: var(--d, 0s);
+}
+
 .time {
   flex: 0 0 auto;
   font-size: 0.75rem;
   color: var(--muted);
 }
 
-/* handwritten paper */
+/* ---- Handwritten paper mock ---- */
 .paper {
+  position: relative;
   width: 100%;
   background: #fffdf6;
   border: 1px solid #e8e2d7;
@@ -105,12 +147,31 @@
   gap: 0.5rem;
 }
 
+/* Lines reveal left-to-right; hidden until the section is live. */
 .line {
   margin: 0;
   font-family: "Itim", cursive;
   font-size: 1.05rem;
   letter-spacing: 0.02em;
   color: #4a4a4a;
+  clip-path: inset(0 100% 0 0);
+}
+
+.live .line,
+.done .line {
+  clip-path: inset(0 0 0 0);
+}
+
+.live .line:nth-of-type(1) {
+  transition: clip-path 0.4s ease-out;
+}
+
+.live .line:nth-of-type(2) {
+  transition: clip-path 0.4s ease-out 0.25s;
+}
+
+.live .line:nth-of-type(3) {
+  transition: clip-path 0.4s ease-out 0.5s;
 }
 
 .noted {
@@ -127,39 +188,167 @@
   bottom: 0.12em;
   height: 0.35em;
   background: linear-gradient(transparent 45%, #ffd166 45%, #ffd166 90%, transparent 90%);
+  transform: scaleX(0);
+  transform-origin: left;
 }
 
-/* chat bubbles */
+.live .noted::after,
+.done .noted::after {
+  transform: scaleX(1);
+}
+
+.live .noted::after {
+  transition: transform 0.5s ease-out 1.05s;
+}
+
+.handCheck {
+  position: absolute;
+  right: -8px;
+  bottom: -6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--line);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+  box-shadow: 0 4px 10px -4px rgb(0 0 0 / 0.35);
+  opacity: 0;
+  transform: scale(0.6);
+}
+
+.live .handCheck,
+.done .handCheck {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.live .handCheck {
+  transition:
+    transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) 1.6s,
+    opacity 0.3s ease-out 1.6s;
+}
+
+/* ---- Chat mock: type -> reply -> confirmation ---- */
 .chatMock {
   flex-direction: column;
   align-items: stretch;
-  gap: 0.5rem;
+  justify-content: center;
+  gap: 0.75rem;
 }
 
-.me,
-.you {
-  white-space: nowrap;
-  width: fit-content;
-  max-width: 100%;
-  border-radius: 0.875rem;
-  padding: 0.5rem 0.875rem;
-  font-size: 0.875rem;
-  box-shadow: 0 6px 16px -10px rgb(0 0 0 / 0.2);
-}
-
-.me {
+.typing {
   align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  padding: 0.8rem 1.15rem;
+  border-radius: 1.15rem;
   background: #fff;
   border: 1px solid #e8e2d7;
 }
 
-.you {
+.typing i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #b9b2a6;
+}
+
+/* Typing dots show for ~1s, then fade as the reply slides in. */
+@keyframes typing-fade {
+  0%,
+  65% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes dot-bounce {
+  to {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+.live .typing {
+  animation: typing-fade 1s ease-out forwards;
+}
+
+.live .typing i {
+  animation: dot-bounce 0.32s ease-in-out infinite alternate;
+}
+
+.live .typing i:nth-child(2) {
+  animation-delay: 0.12s;
+}
+
+.live .typing i:nth-child(3) {
+  animation-delay: 0.24s;
+}
+
+.done .typing {
+  display: none;
+}
+
+.user,
+.reply {
+  white-space: nowrap;
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 1.15rem;
+  padding: 0.65rem 1.15rem;
+  font-size: 1.15rem;
+  box-shadow: 0 6px 16px -10px rgb(0 0 0 / 0.2);
+  opacity: 0;
+}
+
+.user {
   align-self: flex-end;
+  margin-right: -0.5rem;
   background: var(--primary);
   color: #fff;
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.5rem;
+  transform: translateX(40px);
+}
+
+.reply {
+  align-self: flex-start;
+  margin-left: -0.75rem;
+  background: #fff;
+  border: 1px solid #e8e2d7;
+  transform: translateX(-20px) scale(0.8);
+}
+
+.live .user,
+.done .user {
+  opacity: 1;
+  transform: none;
+}
+
+.live .user {
+  transition:
+    opacity 0.35s ease-out 0.9s,
+    transform 0.35s ease-out 0.9s;
+}
+
+.live .reply,
+.done .reply {
+  opacity: 1;
+  transform: none;
+}
+
+.live .reply {
+  transition:
+    opacity 0.35s ease-out 1.5s,
+    transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) 1.5s;
 }
 
 /* ---- Card copy ---- */
@@ -167,36 +356,99 @@
   width: 100%;
   text-align: left;
   border-top: 1px solid var(--border);
-  padding: 1.25rem 1.5rem 1.75rem;
+  padding: var(--space-3) var(--space-3) var(--space-4);
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
 }
 
 .copy p {
-  margin: 0.5rem 0 0;
-  color: #5a5a5a;
+  margin: var(--space-1) 0 0;
+  font-size: 16px;
+  color: var(--ink-soft);
+  line-height: 1.6;
 }
 
+/* ---- Chips ---- */
 .other {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
-  margin-top: 2rem;
+  margin-top: var(--space-6);
   text-align: center;
+}
+
+.otherTitle {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: var(--space-4);
 }
 
 .pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  background: #fff;
+  gap: 12px;
+  height: 48px;
+  padding-inline: var(--space-3);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 0.75rem 1.5rem;
-  font-size: 1.0625rem;
+  font-size: 16px;
   color: #333;
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+  transition: background 200ms ease-out, border-color 200ms ease-out;
+}
+
+.pill:hover {
+  background: var(--chip-hover);
+  border-color: var(--primary);
 }
 
 .pill svg {
+  flex: 0 0 auto;
   color: var(--primary);
+}
+
+@media (max-width: 767px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Reduced-motion users see final content with no motion, even without JS. */
+@media (prefers-reduced-motion: reduce) {
+  .line,
+  .noted::after,
+  .handCheck,
+  .user,
+  .reply {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+    transform: none;
+  }
+
+  .typing {
+    display: none;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .visual {
+    padding: 0.75rem;
+  }
+
+  .copy {
+    padding: var(--space-2) var(--space-3) var(--space-3);
+  }
 }

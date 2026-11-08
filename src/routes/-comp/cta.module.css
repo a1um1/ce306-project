@@ -1,20 +1,133 @@
 .section {
   position: relative;
   z-index: 10;
-  padding: 0 0 6rem;
+  padding-bottom: var(--space-6);
 }
 
-.footer {
-  border-top: 1px solid var(--border);
-  padding: 2rem 1rem;
+.panel {
+  border-radius: var(--radius-panel);
+  padding: var(--space-5);
+  background: linear-gradient(180deg, #fed7aa 0%, #fef3c7 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
   text-align: center;
 }
 
-.footer a {
+.title {
+  margin: 0;
+  font-size: 40px;
+  font-weight: 700;
+  text-wrap: balance;
+}
+
+.sub {
+  margin: 0;
+  font-size: 18px;
+  color: var(--ink-soft);
+}
+
+.ctaRow {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.ctaBtn {
+  min-width: 220px;
+}
+
+/* Slow breathing glow on the primary CTA, only while the panel is on screen. */
+@keyframes glow-breathe {
+  from {
+    box-shadow: 0 0 0 0 rgb(251 176 70 / 0.35);
+  }
+  to {
+    box-shadow: 0 0 28px 6px rgb(251 176 70 / 0.5);
+  }
+}
+
+.on .glow {
+  animation: glow-breathe 3s ease-in-out infinite alternate;
+}
+
+/* ---- Footer ---- */
+.footer {
+  border-top: 1px solid var(--border);
+  padding-block: var(--space-4);
+  background: var(--surface);
+}
+
+.inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tagline {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.links a {
+  font-size: 14px;
   color: var(--muted);
   text-decoration: none;
 }
 
-.footer a:hover {
-  color: var(--text);
+.links a:hover {
+  color: var(--primary);
+}
+
+.copyright {
+  margin: 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .inner {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .brand {
+    margin-right: auto;
+  }
+}
+
+@media (max-width: 767px) {
+  .panel {
+    padding: var(--space-4) var(--space-3);
+  }
+
+  .brand,
+  .links {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .brand {
+    flex-direction: column;
+  }
 }
