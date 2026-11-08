@@ -43,12 +43,6 @@ export function Navbar({ user, onManageCategories }: Props) {
               <Menu.Item className={styles.menuItem} onClick={onManageCategories}>
                 จัดการหมวดหมู่
               </Menu.Item>
-              <Menu.Item className={styles.menuItem} onClick={() => void navigate({ to: "/reader" })}>
-                ทดสอบอ่านสลิป
-              </Menu.Item>
-              <Menu.Item className={styles.menuItem} onClick={() => void navigate({ to: "/label" })}>
-                Label สลิป (สอนโมเดล)
-              </Menu.Item>
               <Menu.Separator className={styles.separator} />
               <Menu.Item className={styles.menuItem} onClick={signOut}>
                 ออกจากระบบ
