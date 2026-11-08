@@ -6,7 +6,7 @@ import { and, count, desc, eq, gte, ilike, isNull, lte, or, sql } from 'drizzle-
 import { db } from '@/db'
 import { account, category, expense } from '@/db/schema'
 import { formatAmount } from '@/lib/utils/format'
-import { pushMessage, replyMessage, showLoading, type Client } from './line-client'
+import { pushMessage, replyMessage, type Client } from './line-client'
 
 export type LineEvent = {
   id: string
@@ -37,14 +37,20 @@ export type ExpenseRow = {
 }
 
 export type LineDeps = {
-  client?: Pick<Client, 'replyMessage' | 'pushMessage' | 'showLoading'>
+  client?: Pick<Client, 'replyMessage' | 'pushMessage'>
   callModel?: (date: string, history: string) => Promise<Step>
   runTool?: (tool: string, argsJson: string, userId: string, now: Date) => Promise<string>
   userIdFor?: (lineUserId: string) => string | null | Promise<string | null>
   now?: () => Date
   insertRows?: (rows: ExpenseRow[]) => Promise<Array<{ title: string; amount: string }>>
-  memoStore?: Map<string, ExpenseRow[]>
+  memoStore?: Map<string, PendingMemo>
 }
+
+// One memo awaiting the user's tap on its confirm card. id travels in the card's
+// postback data, so acting on a card touches only that card's pending memo —
+// older cards (a newer memo overwrote it) become no-ops instead of saving the
+// wrong rows.
+export type PendingMemo = { id: string; rows: ExpenseRow[] }
 
 // Line message params the model may pass. Strictly validated before use.
 type AddItem = { amount: number; note: string; category?: string | null; date?: string | null; type?: 'expense' | 'income' }
@@ -55,13 +61,27 @@ const MAX_TOOL_CALLS = 3
 const TIMEZONE = () => process.env.APP_TIMEZONE ?? 'Asia/Bangkok'
 const NOT_LINKED_TEXT =
   'ยังไม่พบการเชื่อมต่อบัญชี LINE กับ PayTail ครับ เข้าแอป > การตั้งค่า > เชื่อมต่อ LINE ก่อนเริ่มจดรายจ่ายได้เลย'
+const BRAND = '#fbb046' // website --primary
 
-const defaultClient: Pick<Client, 'replyMessage' | 'pushMessage' | 'showLoading'> = { replyMessage, pushMessage, showLoading }
+const defaultClient: Pick<Client, 'replyMessage' | 'pushMessage'> = { replyMessage, pushMessage }
 
-// Memos awaiting the user's "บันทึก" tap: lineUserId -> parsed rows. Saved (or
+// Memos awaiting the user's "บันทึก" tap: lineUserId -> pending. Saved (or
 // dropped) on the postback, so nothing is written until the user confirms.
 // shortcut: in-memory, lost on restart; upgrade to a table if the box restarts often
-export const pendingMemos = new Map<string, ExpenseRow[]>()
+export const pendingMemos = new Map<string, PendingMemo>()
+
+// One branded flex card for any bot message: orange header, white text.
+function textFlex(text: string): unknown {
+  return {
+    type: 'bubble',
+    header: {
+      type: 'box',
+      layout: 'vertical',
+      backgroundColor: BRAND,
+      contents: [{ type: 'text', text, color: '#ffffff', weight: 'bold', size: 'md', wrap: true, align: 'center' }],
+    },
+  }
+}
 
 // ---------------------------------------------------------------------------
 // User resolution. A user who linked LINE via OAuth (settings page:
@@ -271,7 +291,7 @@ async function callModel(date: string, history: string): Promise<Step> {
 // Flex confirm card for a multi-item memo.
 // ---------------------------------------------------------------------------
 
-function memoConfirmFlex(rows: ExpenseRow[]): unknown {
+function memoConfirmFlex(rows: ExpenseRow[], id: string): unknown {
   const total = rows.reduce((sum, r) => sum + Number(r.amount), 0)
   const items = rows.map((r) => ({
     type: 'box',
@@ -287,7 +307,8 @@ function memoConfirmFlex(rows: ExpenseRow[]): unknown {
     header: {
       type: 'box',
       layout: 'vertical',
-      contents: [{ type: 'text', text: 'จดรายจ่ายนี้ใช่ไหม?', weight: 'bold', size: 'md' }],
+      backgroundColor: BRAND,
+      contents: [{ type: 'text', text: 'จดรายจ่ายนี้ใช่ไหม?', color: '#ffffff', weight: 'bold', size: 'md', align: 'center' }],
     },
     body: {
       type: 'box',
@@ -301,7 +322,7 @@ function memoConfirmFlex(rows: ExpenseRow[]): unknown {
           layout: 'baseline',
           contents: [
             { type: 'text', text: 'รวม', weight: 'bold', flex: 2 },
-            { type: 'text', text: `${formatAmount(total)} บาท`, weight: 'bold', flex: 1, align: 'end' },
+            { type: 'text', text: `${formatAmount(total)} บาท`, weight: 'bold', color: BRAND, flex: 1, align: 'end' },
           ],
         },
       ],
@@ -311,12 +332,17 @@ function memoConfirmFlex(rows: ExpenseRow[]): unknown {
       layout: 'vertical',
       spacing: 'sm',
       contents: [
-        { type: 'button', style: 'primary', height: 'sm', action: { type: 'postback', label: 'บันทึก', data: 'memo:save', displayText: 'บันทึกเลย' } },
-        { type: 'button', style: 'secondary', height: 'sm', action: { type: 'postback', label: 'ยกเลิก', data: 'memo:cancel', displayText: 'ไม่จด' } },
+        { type: 'button', style: 'primary', height: 'sm', color: BRAND, action: { type: 'postback', label: 'บันทึก', data: `memo:save:${id}`, displayText: 'บันทึกเลย' } },
+        { type: 'button', style: 'link', height: 'sm', color: BRAND, action: { type: 'postback', label: 'แก้ไข', data: `memo:edit:${id}`, displayText: 'ขอแก้ไข' } },
+        { type: 'button', style: 'secondary', height: 'sm', color: '#999999', action: { type: 'postback', label: 'ยกเลิก', data: `memo:cancel:${id}`, displayText: 'ไม่จด' } },
       ],
     },
   }
 }
+
+// Immediate processing feedback: the app replies this flex before parsing, so
+// the user sees the memo is being read instead of a silent wait for the push.
+const processingFlex = () => textFlex('กำลังอ่านเมมโม่…')
 
 // ---------------------------------------------------------------------------
 // Postback from a memo confirm card: save (insert the pending rows) or cancel.
@@ -324,35 +350,44 @@ function memoConfirmFlex(rows: ExpenseRow[]): unknown {
 
 async function processPostback(
   event: LineEvent,
-  client: Pick<Client, 'replyMessage' | 'pushMessage' | 'showLoading'>,
+  client: Pick<Client, 'replyMessage' | 'pushMessage'>,
   save: (rows: ExpenseRow[]) => Promise<Array<{ title: string; amount: string }>>,
-  memoStore: Map<string, ExpenseRow[]>,
+  memoStore: Map<string, PendingMemo>,
 ): Promise<void> {
   const data = event.postback?.data ?? ''
   const lineUserId = event.source?.userId ?? ''
   const replyToken = event.replyToken ?? ''
-  if (!data.startsWith('memo:')) return
-  const rows = memoStore.get(lineUserId)
-  if (!rows) {
-    if (replyToken) await client.replyMessage(replyToken, [{ type: 'text', text: 'ไม่พบบิลที่รอจดครับ ส่งเมมโมใหม่ได้เลย' }])
+  const match = /^memo:(save|cancel|edit):([\w-]+)$/.exec(data)
+  if (!match) return
+  const [, action, id] = match
+  const pending = memoStore.get(lineUserId)
+  // Acting on a card removes its pending memo; an old card (a newer memo or a
+  // restart wiped the store) is a clean no-op, never a wrong save.
+  if (!pending || pending.id !== id) {
+    if (replyToken) await client.replyMessage(replyToken, [{ type: 'flex', altText: 'การ์ดเก่าแล้ว', contents: textFlex('การ์ดใบนี้เก่าแล้ว ส่งเมมโมใหม่ได้เลยครับ') }])
     return
   }
   memoStore.delete(lineUserId)
-  if (data === 'memo:cancel') {
-    if (replyToken) await client.replyMessage(replyToken, [{ type: 'text', text: 'ไม่จดแล้วครับ ถ้าอยากแก้ไขส่งเมมโมใหม่ได้เลย' }])
+  if (action === 'cancel') {
+    if (replyToken) await client.replyMessage(replyToken, [{ type: 'flex', altText: 'ไม่จดแล้วครับ', contents: textFlex('ไม่จดแล้วครับ') }])
     return
   }
-  const saved = await save(rows)
+  if (action === 'edit') {
+    if (replyToken) await client.replyMessage(replyToken, [{ type: 'flex', altText: 'โอเค ส่งเมมโมที่แก้แล้วมาได้เลยครับ', contents: textFlex('โอเค ส่งเมมโมที่แก้แล้วมาได้เลยครับ') }])
+    return
+  }
+  const saved = await save(pending.rows)
   const lines = saved.map((r) => `${r.title} ${formatAmount(r.amount)}`).join(', ')
-  if (replyToken) await client.replyMessage(replyToken, [{ type: 'text', text: `บันทึกแล้วครับ: ${lines}` }])
+  const done = `บันทึกแล้วครับ: ${lines}`
+  if (replyToken) await client.replyMessage(replyToken, [{ type: 'flex', altText: done, contents: textFlex(done) }])
 }
 
 // ---------------------------------------------------------------------------
 // Orchestration.
-// Message events: typing indicator, then parse (<= MAX_TOOL_CALLS tool turns).
+// Message events: ack flex, then parse (<= MAX_TOOL_CALLS tool turns).
 // add_expense is terminal: single item auto-saves, multiple items push a
 // confirm flex and wait for the postback. Replies are pushed because the
-// loading animation + model runs can outlast the ~10s reply-token window.
+// model runs can outlast the ~10s reply-token window.
 // ---------------------------------------------------------------------------
 
 export async function processLineEvent(event: LineEvent, deps: LineDeps = {}): Promise<void> {
@@ -376,13 +411,13 @@ export async function processLineEvent(event: LineEvent, deps: LineDeps = {}): P
     if (event.type !== 'message' || event.message?.type !== 'text' || !replyToken) return
     const text = event.message.text ?? ''
     console.log(`[line] message from ${lineUserId}: ${text}`)
-    void client.showLoading(lineUserId)
+    await client.replyMessage(replyToken, [{ type: 'flex', altText: 'กำลังอ่านเมมโม่…', contents: processingFlex() }])
 
-    const userId = await userIdFor(lineUserId)
-    if (!userId) {
-      await client.pushMessage(lineUserId, [{ type: 'text', text: NOT_LINKED_TEXT }])
-      return
-    }
+  const userId = await userIdFor(lineUserId)
+  if (!userId) {
+    await client.pushMessage(lineUserId, [{ type: 'flex', altText: NOT_LINKED_TEXT, contents: textFlex(NOT_LINKED_TEXT) }])
+    return
+  }
 
     const tz = TIMEZONE()
     const date = todayInTz(tz, now())
@@ -413,10 +448,11 @@ export async function processLineEvent(event: LineEvent, deps: LineDeps = {}): P
         if (built.rows.length === 1) {
           const saved = await save(built.rows)
           const text = saved.map((r) => `${r.title} ${formatAmount(r.amount)}`).join(', ')
-          await client.pushMessage(lineUserId, [{ type: 'text', text: `บันทึกแล้วครับ: ${text}` }])
+          await client.pushMessage(lineUserId, [{ type: 'flex', altText: `บันทึกแล้วครับ: ${text}`, contents: textFlex(`บันทึกแล้วครับ: ${text}`) }])
         } else {
-          memoStore.set(lineUserId, built.rows)
-          await client.pushMessage(lineUserId, [{ type: 'flex', altText: 'ยืนยันการจดรายจ่าย', contents: memoConfirmFlex(built.rows) }])
+          const id = crypto.randomUUID().slice(0, 8)
+          memoStore.set(lineUserId, { id, rows: built.rows })
+          await client.pushMessage(lineUserId, [{ type: 'flex', altText: 'ยืนยันการจดรายจ่าย', contents: memoConfirmFlex(built.rows, id) }])
         }
         return // add is terminal: either saved now or awaiting the flex tap
       }
@@ -426,9 +462,12 @@ export async function processLineEvent(event: LineEvent, deps: LineDeps = {}): P
     }
 
     console.log(`[line] reply: ${final}`)
-    await client.pushMessage(lineUserId, [{ type: 'text', text: final }])
+    await client.pushMessage(lineUserId, [{ type: 'flex', altText: final, contents: textFlex(final) }])
   } catch (error) {
-    console.error('[line] failed:', error instanceof Error ? error.message : error)
-    await client.pushMessage(lineUserId, [{ type: 'text', text: 'จดไม่สำเร็จ ลองใหม่นะ' }])
+    const reason = error instanceof Error ? error.message : String(error)
+    // Show the real cause on LINE and in the logs — the POC has one user, so
+    // the raw message is safe to leak here.
+    console.error('[line] failed:', error)
+    await client.pushMessage(lineUserId, [{ type: 'flex', altText: `จดไม่สำเร็จ: ${reason}`, contents: textFlex(`จดไม่สำเร็จ: ${reason}`) }])
   }
 }

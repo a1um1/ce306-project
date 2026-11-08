@@ -2,7 +2,6 @@
 // alive) so a dead network can never crash the webhook. Retries once on 5xx:
 // LINE replies and pushes both fail silently and retryable over 5xx.
 const MESSAGE_API = 'https://api.line.me/v2/bot/message'
-const CHAT_API = 'https://api.line.me/v2/bot/chat'
 // A reply token is only valid for ~10 seconds after the event lands.
 const MAX_ATTEMPTS = 2
 
@@ -14,7 +13,7 @@ export type LineTextMessage = {
 }
 export type LineMessage = LineTextMessage | { type: 'flex'; altText: string; contents: unknown }
 
-export type Client = { replyMessage: typeof replyMessage; pushMessage: typeof pushMessage; showLoading: typeof showLoading }
+export type Client = { replyMessage: typeof replyMessage; pushMessage: typeof pushMessage }
 
 function token() {
   return process.env.LINE_CHANNEL_ACCESS_TOKEN
@@ -55,10 +54,4 @@ export async function pushMessage(lineUserId: string, messages: LineMessage[]): 
   const ok = await send(`${MESSAGE_API}/push`, { to: lineUserId, messages })
   if (!ok) console.error('[line] push failed')
   return ok
-}
-
-// Show the typing "..." bubble while the memo is parsed. chatId is the user id
-// for a 1:1 chat; the call only counts after a fresh webhook event from them.
-export async function showLoading(chatId: string): Promise<boolean> {
-  return send(`${CHAT_API}/loading/start`, { chatId, loadingSeconds: 20, numberOfMessages: 1 })
 }
