@@ -1,0 +1,24 @@
+{
+	"configurations": [
+		{
+			"type": "swift",
+			"request": "launch",
+			"args": [],
+			"cwd": "${workspaceFolder:cd306-pro}/tools/slip-reader",
+			"name": "Debug slip-service (tools/slip-reader)",
+			"target": "slip-service",
+			"configuration": "debug",
+			"preLaunchTask": "swift: Build Debug slip-service (tools/slip-reader)"
+		},
+		{
+			"type": "swift",
+			"request": "launch",
+			"args": [],
+			"cwd": "${workspaceFolder:cd306-pro}/tools/slip-reader",
+			"name": "Release slip-service (tools/slip-reader)",
+			"target": "slip-service",
+			"configuration": "release",
+			"preLaunchTask": "swift: Build Release slip-service (tools/slip-reader)"
+		}
+	]
+}

@@ -36,6 +36,7 @@ Generate the auth secret with `openssl rand -base64 32`.
 | --- | --- |
 | `pnpm dev` | Web (3000) + API (3001) together |
 | `pnpm dev:web` / `pnpm dev:api` | Run one side on its own |
+| `pnpm line:dev` | Cloudflare tunnel + auto-set LINE webhook URL |
 | `pnpm build` | Production build to `.output/` |
 | `pnpm start` / `pnpm start:api` | Run the production web build / the API |
 | `pnpm typecheck` | TypeScript check |
@@ -76,6 +77,24 @@ deploy independently.
 
 To serve both from one origin instead, put a reverse proxy in front that forwards
 `/api` to the API and leave `VITE_API_URL` empty.
+
+## LINE Messaging API
+
+The API serves the webhook at `POST /api/line/webhook` and verifies LINE's
+`x-line-signature` (HMAC-SHA256 of the raw body with `LINE_CHANNEL_SECRET`).
+Text messages are echoed back.
+
+1. Create a Messaging API channel at <https://developers.line.biz/console/>.
+2. Put the channel secret and access token in `.env` as `LINE_CHANNEL_SECRET` /
+   `LINE_CHANNEL_ACCESS_TOKEN`.
+3. `pnpm dev` starts `pnpm line:dev` alongside the servers: it opens a Cloudflare
+   quick tunnel to the API port (`cloudflared` must be installed) and sets the
+   LINE webhook to `<tunnel>/api/line/webhook` on every launch. The trycloudflare
+   URL changes each run, so the endpoint is re-set automatically.
+4. In the LINE console, turn **Use webhook** on (Messaging API settings). The API
+   can set the URL but cannot toggle that switch.
+
+Run it on its own with `pnpm line:dev`. Without an access token it exits quietly.
 
 ## Slip reader tool
 

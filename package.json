@@ -4,17 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server/index.ts & vite dev & bun run slips:prod",
+    "dev": "sh scripts/dev.sh",
     "dev:web": "vite dev",
     "dev:api": "tsx watch src/server/index.ts",
+    "line:dev": "tsx scripts/line-webhook-dev.ts",
     "build": "vite build",
     "start": "node .output/server/index.mjs",
     "start:api": "tsx src/server/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test src/lib/utils/*.test.ts src/server/*.test.ts tools/slip-reader/*.test.ts",
-
     "slips:build": "swift build -c release --package-path tools/slip-reader",
-		"slips:prod": "bun run slips:build && ./tools/slip-reader/.build/release/slip-service",
+    "slips:prod": "bun run slips:build && ./tools/slip-reader/.build/release/slip-service",
     "slips:run": "swift run --package-path tools/slip-reader slip-service",
     "slips:clean": "swift package clean --package-path tools/slip-reader",
     "db:up": "docker compose up -d",
@@ -30,8 +30,9 @@
     "@base-ui/react": "^1.9.0",
     "@better-auth/drizzle-adapter": "^1.7.10",
     "@hono/node-server": "^2.1.5",
-    "@tanstack/react-router": "^1.170.45",
+    "@tailwindcss/vite": "^4.3.5",
     "@tanstack/react-query": "^5.80.7",
+    "@tanstack/react-router": "^1.170.45",
     "@tanstack/react-start": "^1.169.3",
     "better-auth": "^1.7.10",
     "dotenv": "^18.0.8",
@@ -41,7 +42,8 @@
     "lucide-react": "^1.59.0",
     "postgres": "^3.4.9",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "tailwindcss": "^4.3.5"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
